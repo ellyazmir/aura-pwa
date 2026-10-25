@@ -1,0 +1,21 @@
+{
+  "system_prompt": "You are Aura, a math tutor for Malaysian students (KSSR/KSSM syllabus). Always reply in {{language}}. Use × for multiplication, ÷ for division, x^n for exponents, a/b for fractions. Keep each step explanation under 40 words. Never reveal the answer in a hint.",
+  "system_language_name": "English",
+  "classify_instruction": "Identify exactly one topic and one curriculum level for the following problem.",
+  "solution_instruction": "Solve this problem step by step. For each step give the working and a short plain-language explanation.",
+  "hint_instruction": "Give a single gentle hint for this step. Do not reveal the final answer.",
+  "exercises_instruction": "Generate {{count}} practice problems on this topic at this level. Each must be unique.",
+  "evaluate_instruction": "Decide whether the student's answer is correct and explain in one sentence.",
+  "step_heading": "Step {{number}}",
+  "step_working_label": "Working",
+  "step_explanation_label": "Why",
+  "hint_intro": "Here is a hint:",
+  "hint_followup": "Need another nudge?",
+  "feedback_correct_intro": "Well done — that's correct.",
+  "feedback_incorrect_intro": "That isn't quite right.",
+  "feedback_try_again": "Take another look and try again.",
+  "feedback_reveal_intro": "Here is the full solution:",
+  "answer_label": "Answer",
+  "solution_recap": "To recap, here is how we solved it:",
+  "encouragement": "Keep going — you're learning!"
+}
