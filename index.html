@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Aura - Offline Math Solver</title>
+  </head>
+  <body>
+    <!-- TOP CONTROLS (Language & Theme) -->
+    <div class="top-controls">
+      <button id="theme-btn" class="icon-btn">🌙</button>
+      <button id="lang-btn" class="icon-btn">BM</button>
+    </div>
+
+    <!-- HOME -->
+    <div id="home-screen" class="screen active">
+      <h1 id="ui-title">Aura</h1>
+      <p id="ui-subtitle">Offline Math Solver</p>
+      <button id="btn-scan" class="btn-primary"><span id="ui-scan">Scan Problem</span></button>
+      <input type="file" accept="image/*" capture="environment" id="cameraInput" style="display: none;" />
+      <div style="margin-top: 30px; width: 100%;">
+        <p id="ui-or-type" class="text-muted">Or type your equation:</p>
+        <input type="text" id="textInput" class="text-input" placeholder="e.g. 12y + 9 = 69" />
+        <button id="btn-solve-text" class="btn-secondary"><span id="ui-solve">Solve Equation</span></button>
+      </div>
+    </div>
+
+    <!-- LOADING -->
+    <div id="loading-screen" class="screen">
+      <div class="spinner"></div>
+      <p id="ui-loading">Processing offline...</p>
+    </div>
+
+    <!-- REVIEW (recheck OCR) -->
+    <div id="review-screen" class="screen">
+      <h2 id="ui-review-title">Confirm Equation</h2>
+      <p id="ui-review-desc" class="text-muted">Edit if the camera misread it:</p>
+      <input type="text" id="ocrTextInput" class="review-input" />
+      <button id="btn-confirm-ocr" class="btn-primary" style="margin-bottom: 10px;"><span id="ui-confirm">Solve This</span></button>
+      <button id="btn-cancel-ocr" class="btn-secondary"><span id="ui-cancel">Retake</span></button>
+    </div>
+
+    <!-- RESULT -->
+    <div id="result-screen" class="screen">
+      <h2 id="ui-solution">Solution</h2>
+      <div id="result-content"></div>
+      <button id="btn-back" class="btn-secondary" style="margin-top: 20px;"><span id="ui-scan-again">Scan Another</span></button>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
