@@ -294,3 +294,180 @@ code {
     border-right-color: var(--border);
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Aura app shell (task 12.1) — minimal-but-clean. The full accessible,
+ * mobile-first styling pass is a later task; keep this lightweight.
+ * These rules intentionally reset the Vite-template #app layout above.
+ * ------------------------------------------------------------------ */
+
+#app {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  text-align: left;
+  border-inline: none;
+  padding: 0 16px 32px;
+  box-sizing: border-box;
+}
+
+.app-header {
+  padding: 24px 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.app-title {
+  font-size: 32px;
+  margin: 0;
+}
+
+.app-tagline {
+  color: var(--text);
+  margin: 4px 0 0;
+  font-size: 15px;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* --- Topic detection + override --- */
+
+.topic-detection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--social-bg);
+}
+
+.topic-detected {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.topic-line,
+.level-line {
+  margin: 0;
+  font-size: 16px;
+}
+
+.topic-value {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.level-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.topic-detect-note {
+  margin: 0;
+  color: var(--text);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.topic-select {
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 12px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.btn {
+  font: inherit;
+  font-size: 16px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-link {
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  padding: 8px 4px;
+  text-align: left;
+  min-height: 44px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.topic-override {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* --- Toast placeholder --- */
+
+#toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+}
+
+.toast {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 15px;
+  box-shadow: var(--shadow);
+  background: var(--text-h);
+  color: var(--bg);
+}
+
+.toast-error {
+  background: #c0392b;
+  color: #fff;
+}
+
+.toast-success {
+  background: #1e824c;
+  color: #fff;
+}
+
+@media (min-width: 480px) {
+  .app-main {
+    gap: 20px;
+  }
+}

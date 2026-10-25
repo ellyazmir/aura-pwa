@@ -1,0 +1,410 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Extend `src/types.js` with answer-format and validation helpers": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841809812
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841824168
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841945186
+      }
+    ],
+    "1.2 Add Vitest and fast-check configuration": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841811721
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841825057
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841946238
+      }
+    ],
+    "2.1 Implement `validateFile`, `captureFromFile`, and `captureFromCamera` in `src/capture/captureModule.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841812260
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841951738
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842231995
+      }
+    ],
+    "3.1 Implement `runOCR` and error types in `src/backend/fetchOCR.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841812384
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841953168
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842233418
+      },
+      {
+        "executionId": "84e4b0c1-6f5b-4ba5-9407-77f5efb577a2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792844673783
+      },
+      {
+        "executionId": "84e4b0c1-6f5b-4ba5-9407-77f5efb577a2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792844809471
+      },
+      {
+        "executionId": "7050f50b-692d-4368-8e55-b50ca9744c3c",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792844989492
+      },
+      {
+        "executionId": "7050f50b-692d-4368-8e55-b50ca9744c3c",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792845112031
+      }
+    ],
+    "4.1 Implement `formatProblemText` and `formatStepText` in `src/formatting/prettyPrinter.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841812563
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841954598
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842234769
+      }
+    ],
+    "5. Checkpoint - capture, OCR, and formatting": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841812666
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843127708
+      }
+    ],
+    "6.1 Implement `recordExerciseResult`, `getSummary`, and `clearAll` in `src/progress/progressStore.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841812763
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841955945
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842236210
+      }
+    ],
+    "7.1 Create translation namespaces and implement `src/i18n/i18nService.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841812850
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841956975
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842237049
+      }
+    ],
+    "8.1 Implement the WebLLM worker in `src/tutor/tutorWorker.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841812944
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842295825
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842719361
+      }
+    ],
+    "8.2 Implement `src/tutor/tutorEngine.js` request/response orchestration": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813069
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842729582
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843109741
+      }
+    ],
+    "9.1 Implement a session controller in `src/tutor/tutorSession.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813151
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843133766
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843336512
+      }
+    ],
+    "10. Checkpoint - tutor engine, session logic, progress, and i18n": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813225
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843359795
+      }
+    ],
+    "11.1 Configure `vite-plugin-pwa` / Workbox in `vite.config.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813303
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843134808
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843337231
+      }
+    ],
+    "11.2 Implement `src/sw/serviceWorkerManager.js` registration and storage checks": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813387
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843366976
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843608235
+      }
+    ],
+    "12.1 Build the topic detection and override UI in `src/main.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813467
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843367821
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843607212
+      }
+    ],
+    "13.1 Implement the capture → OCR → review flow in `src/main.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813548
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843614521
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843867122
+      }
+    ],
+    "13.2 Implement step-by-step walkthrough and practice flow in `src/main.js`": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813631
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843871924
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792844171637
+      }
+    ],
+    "13.3 Implement language selection prompt, settings toggle, and live re-render": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813708
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792844178079
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792844373609
+      }
+    ],
+    "14. Final checkpoint - full offline flow": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841813792
+      },
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792844417504
+      }
+    ],
+    "1. Establish shared constants, answer-format helpers, and test setup": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792841946327
+      }
+    ],
+    "2. Implement CaptureModule (camera + file upload + validation)": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842232120
+      }
+    ],
+    "3. Implement OCRService against the Roboflow EasyOCR endpoint": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842233516
+      }
+    ],
+    "4. Implement PrettyPrinter notation formatting": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842234855
+      }
+    ],
+    "6. Implement ProgressStore over IndexedDB": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842236303
+      }
+    ],
+    "7. Implement I18nService with i18next": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792842237135
+      }
+    ],
+    "8. Implement the on-device TutorEngine and Web Worker": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843109875
+      }
+    ],
+    "9. Implement tutoring interaction state machine (hints, attempts, answer reveal)": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843336630
+      }
+    ],
+    "12. Implement topic detection and manual topic selection UI": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843607339
+      }
+    ],
+    "11. Configure the service worker and PWA offline strategies": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792843608330
+      }
+    ],
+    "13. Wire the end-to-end UI flow and progress/language views": [
+      {
+        "executionId": "d10901e9-f690-4ae4-90ae-c71325488af2",
+        "chatSessionId": "sess_f7b369c0-21de-4c89-86b3-94c4be44a494",
+        "timestamp": 1792844373735
+      }
+    ]
+  }
+}
