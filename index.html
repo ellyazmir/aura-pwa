@@ -13,7 +13,7 @@
   
   <div class="fab-container">
     <button id="home-btn" class="fab-btn" title="Back to Home">🏠︎</button>
-    <button id="theme-btn" class="fab-btn" title="Toggle Theme">☽</button>
+    <button id="theme-btn" class="fab-btn" title="Toggle Theme">⏾</button>
   </div>
 
   <div id="app"></div>
@@ -25,7 +25,7 @@
     
     if (currentTheme === 'dark' || (!currentTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.setAttribute('data-theme', 'dark');
-      themeBtn.innerText = '✴';
+      themeBtn.innerText = '☀';
     }
     
     themeBtn.addEventListener('click', () => {
@@ -33,11 +33,11 @@
       if (isDark) {
         document.documentElement.removeAttribute('data-theme');
         localStorage.setItem('aura-theme', 'light');
-        themeBtn.innerText = '☽';
+        themeBtn.innerText = '⏾';
       } else {
         document.documentElement.setAttribute('data-theme', 'dark');
         localStorage.setItem('aura-theme', 'dark');
-        themeBtn.innerText = '✴';
+        themeBtn.innerText = '☀';
       }
     });
 
