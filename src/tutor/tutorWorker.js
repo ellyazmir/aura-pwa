@@ -37,7 +37,20 @@
 
 import { CreateMLCEngine, prebuiltAppConfig } from '@mlc-ai/web-llm';
 import { TOPICS, CURRICULUM_LEVELS } from '../types.js';
+import { createLiteTutor } from './mathFallback.js';
 
+/** True when running without the LLM (no WebGPU / model failed to load). */
+let liteMode = false;
+let lite = null; // created after coerceTopic/coerceLevel are defined (see below)
+
+function enterLiteMode(reason) {
+  liteMode = true;
+  console.warn('[aura-worker] using lightweight math solver:', reason);
+  self.postMessage({
+    type: 'progress',
+    progress: { progress: 1, text: 'Using lightweight offline solver', mode: 'lite' },
+  });
+}
 /**
  * Model tiers, largest first. Sizes are approximate download/VRAM footprints.
  *  - large:  ~3 GB   (desktop with a decent GPU)
@@ -46,9 +59,9 @@ import { TOPICS, CURRICULUM_LEVELS } from '../types.js';
  */
 const MODEL_TIERS = {
   // large: 'Qwen3-4B-q4f16_1-MLC',   // ← too aggressive for many GPUs
-  large:  'Qwen3-1.7B-q4f16_1-MLC',   // safer "large"
-  medium: 'Qwen3-0.6B-q4f16_1-MLC',
-  small:  'Qwen3-0.6B-q4f16_1-MLC',   // or keep a smaller one if available
+  large:  'Phi-3.5-mini-instruct-q4f16_1-MLC',
+  medium: 'Qwen3-1.7B-q4f16_1-MLC',
+  small:  'Qwen3-0.6B-q4f16_1-MLC',  // or keep a smaller one if available
 };
 
 /** Tier order used for the out-of-memory fallback chain. */
@@ -62,7 +75,7 @@ const TIER_ORDER = ['large', 'medium', 'small'];
 const FORCE_TIER = 'medium';
 
 /** Default model id (kept as an export for tests / backwards compatibility). */
-const MODEL_ID = MODEL_TIERS.large;
+const MODEL_ID = MODEL_TIERS.medium;
 
 /**
  * Human-readable reply language names keyed by LanguageCode. Injected into the
@@ -184,11 +197,8 @@ function ensureEngine(language) {
   initPromise = (async () => {
     const adapter = await getGpuAdapter();
     if (!adapter) {
-      throw new Error(
-        'WebGPU is not available: no compatible GPU adapter was found. ' +
-          "Aura's on-device tutor needs a WebGPU-capable browser with hardware " +
-          'acceleration enabled.'
-      );
+      enterLiteMode('no WebGPU adapter');
+      return;
     }
 
     const config = {
@@ -211,15 +221,16 @@ function ensureEngine(language) {
       try {
         engine = await CreateMLCEngine(MODEL_TIERS[tier], config, chatOpts);
         activeTier = tier;
+        console.log('[aura-worker] loaded model:', MODEL_TIERS[tier], '(tier:', tier + ')');
         return;
       } catch (err) {
         lastErr = err;
         engine = null;
-        if (isGpuUnavailableError(err)) throw err;
+        if (isGpuUnavailableError(err)) break; 
         // Otherwise (e.g. out of memory) try the next smaller tier.
       }
     }
-    throw lastErr || new Error('Failed to load any tutor model.');
+    enterLiteMode(String((lastErr && lastErr.message) || lastErr || 'model load failed'));
   })();
 
   // If init fails, clear the cached promise so a later attempt can retry.
@@ -492,6 +503,7 @@ function coerceTopic(raw) {
   return partial || TOPICS[0];
 }
 
+lite = createLiteTutor({ coerceTopic, coerceLevel });
 /**
  * Coerce a raw string to a valid {@link CURRICULUM_LEVELS} value.
  * @param {*} raw
@@ -731,31 +743,44 @@ async function handleEvaluate(payload) {
   };
 }
 
-/**
- * Dispatch a request type to its handler.
- * @param {string} type
- * @param {object} payload
- * @returns {Promise<*>}
- */
+async function run(payload, llmHandler, liteHandler) {
+  await ensureEngine(payload && payload.language);
+  if (liteMode) return liteHandler(payload);
+  try {
+    return await llmHandler(payload);
+  } catch (err) {
+    try {
+      return await liteHandler(payload);
+    } catch {
+      throw err; // report the original LLM error
+    }
+  }
+}
+
+/** Try the exact rule-based solver first; fall back to the LLM if it can't handle the input. */
+async function runLiteFirst(payload, liteHandler, llmHandler) {
+  try {
+    return await liteHandler(payload);
+  } catch {
+    return run(payload, llmHandler, liteHandler);
+  }
+}
+
 async function dispatch(type, payload) {
   switch (type) {
     case 'init':
-      return ensureEngine(payload && payload.language);
+      await ensureEngine(payload && payload.language);
+      return { mode: liteMode ? 'lite' : 'llm' };
     case 'classify':
-      await ensureEngine(payload && payload.language);
-      return handleClassify(payload);
+      return run(payload, handleClassify, (p) => lite.classify(p));
     case 'solution':
-      await ensureEngine(payload && payload.language);
-      return handleSolution(payload);
+      return runLiteFirst(payload, (p) => lite.solution(p), handleSolution);
     case 'hint':
-      await ensureEngine(payload && payload.language);
-      return handleHint(payload);
+      return run(payload, handleHint, (p) => lite.hint(p));
     case 'exercises':
-      await ensureEngine(payload && payload.language);
-      return handleExercises(payload);
+      return run(payload, handleExercises, (p) => lite.exercises(p));
     case 'evaluate':
-      await ensureEngine(payload && payload.language);
-      return handleEvaluate(payload);
+      return run(payload, handleEvaluate, (p) => lite.evaluate(p));
     default:
       throw new Error(`Unknown request type: ${String(type)}`);
   }

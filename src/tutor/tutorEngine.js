@@ -11,6 +11,9 @@
  *  - Relay init progress messages to subscribers registered via `onProgress`.
  *  - Expose typed async operations: classifyProblem, generateSolution,
  *    generateHint, generateExercises, evaluateAnswer, plus init / ready helpers.
+ *  - Report which backend the worker settled on via `getMode()`:
+ *    'llm' (WebLLM model) or 'lite' (offline rule-based math solver used when
+ *    WebGPU is unavailable or the model could not load).
  *  - Guard classification output so callers always receive exactly one
  *    non-empty topic from TOPICS and one valid CurriculumLevel from
  *    CURRICULUM_LEVELS (Property 6), mirroring the worker's own coercion.
@@ -55,6 +58,8 @@
  * (or an `onmessage`/`onerror` property), and `terminate`. Replies must use the
  * worker protocol: `{ requestId, ok: true, result }` or
  * `{ requestId, ok: false, error }`; progress uses `{ type: 'progress', progress }`.
+ * The `init` reply's result may be `{ mode: 'llm' | 'lite' }`; a missing or
+ * unrecognised result is treated as 'llm'.
  *
  * The module also exports a default singleton (lazily spawning the real worker)
  * for production use.
@@ -201,6 +206,7 @@ function normaliseClassification(result) {
  * @returns {{
  *   init: (language?: string) => Promise<void>,
  *   isReady: () => boolean,
+ *   getMode: () => ('llm'|'lite'|null),
  *   whenReady: () => Promise<void>,
  *   onProgress: (cb: (progress: any) => void) => (() => void),
  *   classifyProblem: (problemText: string, language?: string) => Promise<{topic: string, curriculumLevel: string, confidence: number}>,
@@ -225,6 +231,12 @@ export function createTutorEngine(options = {}) {
   let nextRequestId = 1;
   /** Readiness state driven by a successful `init`. */
   let ready = false;
+  /**
+   * Backend the worker settled on after `init`: 'llm' (WebLLM model) or 'lite'
+   * (offline rule-based solver). Null until init completes.
+   * @type {'llm'|'lite'|null}
+   */
+  let mode = null;
   /** @type {Promise<void>|null} */
   let initPromise = null;
 
@@ -316,6 +328,7 @@ export function createTutorEngine(options = {}) {
   /**
    * Initialise the worker/model. Idempotent: concurrent calls share one
    * initialisation. On failure the promise is cleared so a later call retries.
+   * Records which backend ('llm' or 'lite') the worker settled on.
    * @param {string} [language]
    * @returns {Promise<void>}
    */
@@ -324,7 +337,8 @@ export function createTutorEngine(options = {}) {
     if (initPromise) return initPromise;
 
     initPromise = request('init', { language })
-      .then(() => {
+      .then((res) => {
+        mode = res && res.mode === 'lite' ? 'lite' : 'llm';
         ready = true;
       })
       .catch((err) => {
@@ -338,6 +352,15 @@ export function createTutorEngine(options = {}) {
   /** @returns {boolean} whether the engine has completed initialisation. */
   function isReady() {
     return ready;
+  }
+
+  /**
+   * Which backend is serving requests: 'llm' (on-device model), 'lite'
+   * (offline rule-based solver), or null before init has completed.
+   * @returns {'llm'|'lite'|null}
+   */
+  function getMode() {
+    return mode;
   }
 
   /**
@@ -451,12 +474,14 @@ export function createTutorEngine(options = {}) {
     if (typeof worker.terminate === 'function') worker.terminate();
     worker = null;
     ready = false;
+    mode = null;
     initPromise = null;
   }
 
   return {
     init,
     isReady,
+    getMode,
     whenReady,
     onProgress,
     classifyProblem,
@@ -476,6 +501,7 @@ const defaultEngine = createTutorEngine();
 
 export const init = (language) => defaultEngine.init(language);
 export const isReady = () => defaultEngine.isReady();
+export const getMode = () => defaultEngine.getMode();
 export const whenReady = () => defaultEngine.whenReady();
 export const onProgress = (cb) => defaultEngine.onProgress(cb);
 export const classifyProblem = (problemText, language) =>
