@@ -39,6 +39,9 @@ import { CreateMLCEngine, prebuiltAppConfig } from '@mlc-ai/web-llm';
 import { TOPICS, CURRICULUM_LEVELS } from '../types.js';
 import { createLiteTutor } from './mathFallback.js';
 
+/** Set VITE_DISABLE_LLM=true in .env to skip the model and use only the rule-based solver. */
+const LLM_DISABLED = import.meta.env?.VITE_DISABLE_LLM === 'true';
+
 /** True when running without the LLM (no WebGPU / model failed to load). */
 let liteMode = false;
 let lite = null; // created after coerceTopic/coerceLevel are defined (see below)
@@ -195,6 +198,10 @@ function ensureEngine(language) {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
+    if (LLM_DISABLED) {
+      enterLiteMode('LLM disabled via VITE_DISABLE_LLM');
+      return;
+    }
     const adapter = await getGpuAdapter();
     if (!adapter) {
       enterLiteMode('no WebGPU adapter');
@@ -743,18 +750,55 @@ async function handleEvaluate(payload) {
   };
 }
 
+/** If the LLM (including first-time model loading) has not answered by then, use the rule-based solver. */
+const LLM_TIMEOUT_MS = 5000;
+
+/** Reject with { timedOut: true } if `promise` has not settled within `ms`. */
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => reject(Object.assign(new Error('The tutor model took too long to respond.'), { timedOut: true })), ms);
+    promise.then(
+      (v) => { clearTimeout(id); resolve(v); },
+      (e) => { clearTimeout(id); reject(e); }
+    );
+  });
+}
+
 async function run(payload, llmHandler, liteHandler) {
-  await ensureEngine(payload && payload.language);
-  if (liteMode) return liteHandler(payload);
+  const attempt = (async () => {
+    await ensureEngine(payload && payload.language);
+    if (liteMode) return { lite: true };
+    return { value: await llmHandler(payload) };
+  })();
+  attempt.catch(() => {}); // a late failure after the timeout must not be unhandled
+
+  let outcome;
   try {
-    return await llmHandler(payload);
+    outcome = await withTimeout(attempt, LLM_TIMEOUT_MS);
   } catch (err) {
     try {
-      return await liteHandler(payload);
+      const liteResult = await liteHandler(payload);
+      if (err && err.timedOut && engine && typeof engine.interruptGenerate === 'function') {
+        // The fallback answered, so stop the slow generation to keep the next
+        // request unblocked. Model loading (if still running) carries on.
+        try { engine.interruptGenerate(); } catch { /* ignore */ }
+      }
+      return liteResult;
     } catch {
+      // The rule-based solver cannot handle this problem. After a timeout the
+      // LLM is the only option, so keep waiting for it instead of failing.
+      if (err && err.timedOut) {
+        try {
+          outcome = await attempt;
+          return outcome.lite ? liteHandler(payload) : outcome.value;
+        } catch (llmErr) {
+          throw llmErr;
+        }
+      }
       throw err; // report the original LLM error
     }
   }
+  return outcome.lite ? liteHandler(payload) : outcome.value;
 }
 
 /** Try the exact rule-based solver first; fall back to the LLM if it can't handle the input. */
@@ -772,7 +816,12 @@ async function dispatch(type, payload) {
       await ensureEngine(payload && payload.language);
       return { mode: liteMode ? 'lite' : 'llm' };
     case 'classify':
-      return run(payload, handleClassify, (p) => lite.classify(p));
+      // Rule-based classification first: instant, and avoids loading the LLM.
+      try {
+        return await lite.classify(payload, { strict: true });
+      } catch {
+        return run(payload, handleClassify, (p) => lite.classify(p));
+      }
     case 'solution':
       return runLiteFirst(payload, (p) => lite.solution(p), handleSolution);
     case 'hint':

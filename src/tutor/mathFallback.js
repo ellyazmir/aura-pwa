@@ -8,6 +8,7 @@
  * costs bandwidth in lite mode.
  */
 import { TOPICS, CURRICULUM_LEVELS } from '../types.js';
+import { identify, solveWithRules } from './rules/index.js';
 
 const t = (lang, en, ms) => (lang === 'ms' ? ms : en);
 
@@ -178,14 +179,17 @@ function stripParens(root, fractionMode) {
   );
 }
 
+/** mathjs prints whole-number Fractions as "12/1"; show them as "12". */
+const wholeNumbers = (s) => s.replace(/(\d+)\/1(?!\d)/g, '$1');
+
 function show(root, fractionMode) {
-  let s = root.toString({ parenthesis: 'keep' }).replace(/ \* /g, ' × ');
+  let s = wholeNumbers(root.toString({ parenthesis: 'keep' })).replace(/ \* /g, ' × ');
   if (!fractionMode) s = s.replace(/ \/ /g, ' ÷ ');
   return s;
 }
 
 function describe(node, depth, lang) {
-  const [a, b] = node.args.map((x) => x.toString());
+  const [a, b] = node.args.map((x) => wholeNumbers(x.toString()));
   const text = {
     add: t(lang, `Add ${a} and ${b}.`, `Tambah ${a} dan ${b}.`),
     subtract: t(lang, `Subtract ${b} from ${a}.`, `Tolak ${b} daripada ${a}.`),
@@ -224,7 +228,7 @@ function solveArithmetic(math, expr, lang) {
         const out = new math.ConstantNode(root.compile().evaluate());
         if (out.toString() !== root.toString()) {
           steps.push({
-            working: `= ${out.toString()}`,
+            working: `= ${wholeNumbers(out.toString())}`,
             explanation: t(lang, 'Simplify the fraction.', 'Permudahkan pecahan itu.'),
           });
         }
@@ -269,7 +273,7 @@ function solveLinear(math, s, lang) {
   } catch {
     return null;
   }
-  const fmt = (v) => math.format(v);
+  const fmt = (v) => wholeNumbers(math.format(v));
   const rhs = math.unaryMinus(c);
   const sol = math.divide(rhs, a);
   const aStr = math.equal(a, 1) ? '' : math.equal(a, -1) ? '-' : fmt(a);
@@ -453,8 +457,24 @@ export function createLiteTutor({ coerceTopic, coerceLevel }) {
       .find(Boolean);
 
   return {
-        async classify({ problemText }) {
+    /**
+     * @param {{ problemText: string }} payload
+     * @param {{ strict?: boolean }} [opts] strict: throw when no rule recognises the
+     *   problem (lets the caller fall back to the LLM instead of guessing).
+     */
+    async classify({ problemText }, opts = {}) {
       const { kind, s } = detect(problemText);
+      const hit = kind === 'power-choice' ? null : identify(problemText);
+      if (hit) {
+        return {
+          topic: coerceTopic(hit.topic),
+          curriculumLevel: coerceLevel(hit.level),
+          confidence: 0.9,
+        };
+      }
+      if (opts.strict && kind === 'unknown') {
+        throw new Error('No rule-based solver recognises this problem.');
+      }
       let topic;
       let rank = 0;
       if (kind === 'power-choice') {
@@ -481,16 +501,25 @@ export function createLiteTutor({ coerceTopic, coerceLevel }) {
       let steps = null;
       if (kind === 'power-choice') {
         steps = solveBaseIndex(s, language);
-      } else if (kind === 'percent') {
+      } else {
+        // Topic rules first (fractions, geometry, algebra, statistics...).
+        steps = await solveWithRules(problemText, language, { loadMath });
+      }
+      if (!steps && kind === 'percent') {
         steps = solvePercent(s, language);
-      } else if (kind === 'linear' || kind === 'arithmetic') {
-        const { frac } = await loadMath();
-        steps = kind === 'linear' ? solveLinear(frac, s, language) : solveArithmetic(frac, s, language);
+      } else if (!steps && (kind === 'linear' || kind === 'arithmetic')) {
+        const { frac, num } = await loadMath();
+        // Decimals stay decimals (plain numbers); everything else uses exact fractions.
+        steps = kind === 'linear'
+          ? solveLinear(frac, s, language)
+          : solveArithmetic(s.includes('.') ? num : frac, s, language);
       }
       if (!steps || steps.length === 0) {
         throw new Error(
-          'Could not parse this problem: the offline solver only handles arithmetic, fractions, ' +
-            'percentages, indices questions and one-variable linear equations.'
+          'Could not parse this problem: the offline solver handles arithmetic, fractions, ' +
+            'percentages, ratios, HCF/LCM, rounding, perimeter/area/volume, statistics, ' +
+            'simple probability, sequences, linear and quadratic equations, simultaneous ' +
+            'equations, expanding/factorising, Pythagoras and coordinate geometry.'
         );
       }
       const total = steps.length;
