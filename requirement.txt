@@ -1,0 +1,165 @@
+==============================================================================
+CIKGU AI (aura-pwa) - PROJECT REQUIREMENTS
+KPM KSSR & KSSM Socratic Tutor (Progressive Web App)
+==============================================================================
+
+1. WHAT THE PROJECT IS
+------------------------------------------------------------------------------
+A React + TypeScript PWA with a small Express server. Students ask school
+questions (Malaysian KPM curriculum: KSSR Std 1-6, KSSM Form 1-5), by text or
+by photo. The app guides them with a 3-phase Socratic method:
+  Phase 1 - Kehendak soalan + Hint 1 (no final answer)
+  Phase 2 - Check student's working + Hint 2/3 + KBAT question
+  Phase 3 - Full official marking scheme (K1 / N1 / P1, SI units, examiner tips)
+It also has an "Offline Study Pack" mode (all hints + full solution in one reply).
+When there is no internet, a small Qwen2.5 model runs inside the browser
+(WebAssembly) as a fallback.
+
+2. SYSTEM REQUIREMENTS
+------------------------------------------------------------------------------
+- Node.js 22 LTS or newer (package.json uses @types/node ^22)
+- npm (a bun.lock also exists, so Bun works as an alternative)
+- Internet connection for: installing packages, calling the AI providers,
+  and the one-time download of the offline model
+- Modern browser with WebAssembly support (Chrome, Edge, Firefox, Safari)
+  - Cross-origin isolation (set by server.ts) enables multi-threaded offline AI
+  - Offline model needs about 400 MB (0.5B) or 1.1 GB (1.5B) of browser storage
+  - 1.5B model is chosen only when: crossOriginIsolated, >= 8 GB RAM, >= 8 cores
+
+3. EXTERNAL SERVICES / ACCOUNTS
+------------------------------------------------------------------------------
+At least ONE of these API keys is required (server returns an error without it):
+- Google Gemini API key  -> main provider  (https://ai.google.dev)
+- Groq API key           -> fallback provider (https://console.groq.com)
+Fallback order: Gemini first, then Groq. A provider that returns HTTP 429 is
+skipped for 60 seconds.
+Optional: Hugging Face (huggingface.co) is used only to download the offline
+GGUF model files in the browser. No token is needed for that.
+
+4. ENVIRONMENT VARIABLES (.env in project root, never commit it)
+------------------------------------------------------------------------------
+  GEMINI_API_KEY        required (or GROQ_API_KEY)   Gemini key
+  GROQ_API_KEY          required (or GEMINI_API_KEY) Groq key
+  GEMINI_CHAT_MODEL     optional  default: gemini-3.5-flash-lite
+  GEMINI_VISION_MODEL   optional  default: gemini-3.5-flash-lite
+  GROQ_CHAT_MODEL       optional  default: qwen/qwen3.8-27b
+  GROQ_VISION_MODEL     optional  default: qwen/qwen3.8-27b
+  PORT                  optional  default: 3000
+  NODE_ENV              set to "production" by "npm start"
+  DISABLE_HMR           optional  set to "true" to turn off Vite hot reload
+
+5. RUNTIME DEPENDENCIES (npm "dependencies")
+------------------------------------------------------------------------------
+  react                 ^19.0.1    UI library
+  react-dom             ^19.0.1    React DOM renderer
+  vite                  ^8.3.0     Dev server (middleware mode) and bundler
+  @vitejs/plugin-react  ^6.1.1     React support for Vite
+  @tailwindcss/vite     ^4.3.3     Tailwind CSS v4 Vite plugin
+  express               ^4.21.2    API server + static hosting in production
+  dotenv                ^17.2.3    Loads .env
+  @wllama/wllama        ^1.17.0    On-device AI (llama.cpp in WebAssembly)
+                                   Keep on 1.x: API differs from 2.x
+  lucide-react          ^0.546.0   Icons
+  motion                ^12.23.24  Animations
+  canvas-confetti       ^1.9.4     Celebration effect at Phase 3
+
+6. DEVELOPMENT DEPENDENCIES (npm "devDependencies")
+------------------------------------------------------------------------------
+  typescript            ^7.0.2     Type checking (npm run lint = tsc --noEmit)
+  tsx                   ^4.21.0    Runs server.ts directly
+  tailwindcss           ^4.3.3     Tailwind CSS v4
+  autoprefixer          ^10.4.21   CSS vendor prefixes
+  esbuild               ^0.28.2    Bundler used by Vite/tsx
+  vite-plugin-pwa       ^2.0.0     Service worker + web manifest (Workbox)
+  @types/node           ^22.14.0
+  @types/react          ^19.3.0
+  @types/react-dom      ^19.3.0
+  @types/express        ^4.17.21
+  @types/canvas-confetti ^1.9.0
+
+Note: the "start" script in package.json uses "cross-env"
+(cross-env NODE_ENV=production), but cross-env is NOT listed in package.json.
+If "npm start" fails with "cross-env is not recognized", install it:
+  npm install --save-dev cross-env
+
+7. REQUIRED STATIC FILES
+------------------------------------------------------------------------------
+The offline AI engine needs these 5 files in public/wllama/ (already present).
+If missing, copy them from node_modules/@wllama/wllama/esm/:
+  public/wllama/single-thread/wllama.js
+  public/wllama/single-thread/wllama.wasm
+  public/wllama/multi-thread/wllama.js
+  public/wllama/multi-thread/wllama.wasm
+  public/wllama/multi-thread/wllama.worker.mjs
+
+Optional later: add 192x192 and 512x512 PNG icons to the PWA manifest in
+vite.config.ts (icons is empty now, so the app is not yet installable).
+
+8. SETUP AND RUN
+------------------------------------------------------------------------------
+  1) npm install
+  2) Create .env with GEMINI_API_KEY and/or GROQ_API_KEY (see section 4)
+  3) npm run dev          -> http://localhost:3000   (Express + Vite)
+  4) npm run build        -> production build in dist/
+  5) npm start            -> serves dist/ on PORT (default 3000)
+  6) npm run lint         -> TypeScript type check
+  7) node list-models.mjs -> lists model IDs available on your Groq account
+
+9. API ENDPOINTS (server.ts)
+------------------------------------------------------------------------------
+  POST /api/cikgu/chat        Socratic chat (online) or study pack (offline)
+                              body: mode, messages[], educationLevel, subject,
+                              language (bm | en | bilingual),
+                              requestDirectPhase3, userAttempt, image
+  POST /api/cikgu/scan-image  OCR of a question photo: returns extractedText,
+                              detectedSubject, detectedLevel, summary
+  JSON body limit: 20 MB (for base64 images)
+
+10. FUNCTIONAL REQUIREMENTS
+------------------------------------------------------------------------------
+ F1  Ask a question by text, quick sample question, or attached photo.
+ F2  Two modes: Online Socratic (3 phases) and Offline Study Pack.
+ F3  Curriculum level: auto, KSSR, KSSM Form 1-3 (UASA), KSSM Form 4-5 (SPM).
+ F4  Subject selection (Matematik, Matematik Tambahan, Fizik, Kimia, Sains,
+     Sejarah, etc.) and language: Bahasa Melayu, English, bilingual.
+ F5  Photo scanner (camera/upload) that extracts the question text and
+     auto-detects subject and level. Needs internet.
+ F6  Phase tracker, "show full solution" button, suggested quick replies.
+ F7  Scratchpad ("Buku Latihan") to write a step and submit it as an attempt.
+ F8  KPM formula/KBAT keyword reference (Rumus KPM) and sample question list.
+ F9  Offline fallback: if no internet or the server fails (5xx / 60 s
+     timeout), answer with the on-device Qwen2.5 model. The student must
+     download the model once while online ("Muat turun model luar talian").
+ F10 Installable/cacheable PWA (service worker, autoUpdate) that caches the
+     app and wllama files (cache limit 40 MB per file).
+ F11 Plain-text maths only: no LaTeX; server removes LaTeX from replies.
+ F12 Hidden "privateSolution" field is used by the model for consistency and
+     is deleted before the reply is sent to the browser.
+
+11. NON-FUNCTIONAL REQUIREMENTS
+------------------------------------------------------------------------------
+ N1  Server response headers: COOP "same-origin" and COEP "credentialless"
+     (needed for multi-threaded WebAssembly).
+ N2  Never serve index.html for /api/ paths or for missing files with an
+     extension (.js, .wasm) - those must return 404.
+ N3  API keys stay on the server only (.env is in .gitignore).
+ N4  Retry once if the model returns invalid JSON; fall back to the next
+     provider on 401/402/403/404/408/429/5xx or network errors.
+ N5  Responsive UI with light/dark (Tailwind) styling.
+
+12. PROJECT STRUCTURE
+------------------------------------------------------------------------------
+  server.ts                    Express API + Vite dev middleware + LLM routing
+  vite.config.ts               Vite, React, Tailwind, PWA settings
+  list-models.mjs              Helper script: list Groq model IDs
+  index.html, metadata.json    App shell and metadata
+  public/wllama/               WebAssembly files for the offline model
+  src/main.tsx, src/App.tsx    App entry and main screen
+  src/index.css                Tailwind import
+  src/components/              Header, ChatMessage, PhaseTracker, Scratchpad,
+                               ImageScannerModal, SampleQuestionsModal,
+                               KpmReferenceModal
+  src/data/kpmData.ts          Sample questions, subjects, formulas, KBAT words
+  src/lib/offlineFallback.ts   On-device model loader and fallback fetch
+  src/types/cikgu.ts           Shared TypeScript types
+==============================================================================
