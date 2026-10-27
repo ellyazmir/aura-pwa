@@ -10,7 +10,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+// Default to port 5173 (standard Vite/preview port) if process.env.PORT is not specified
+const PORT = Number(process.env.PORT) || 5173;
 
 app.use(express.json({ limit: '20mb' }));
 
@@ -420,7 +421,8 @@ ${messages
   .join('\n\n')}
 
 INSTRUCTIONS:
-- Current Target Phase: ${requestDirectPhase3 ? '3' : targetPhase}.
+- Current Target Phase: 
+${requestDirectPhase3 ? '3' : targetPhase}.
 - If Phase 1: Acknowledge warmly, identify Kehendak Soalan and give HINT 1. NEVER give the final answer or numeric solution in Phase 1.
 - If Phase 2: Validate student working, provide HINT 2 or 3, include KBAT prompt ("Mengapa / Bagaimana"). Do not reveal final answer yet.
 - If Phase 3: Confirm correctness and render official KSSR / KSSM / SPM marking scheme (with [K1/N1/P1] marks, SI units, and examiner tips).
@@ -487,7 +489,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Cikgu AI Server is running on http://0.0.0.0:${PORT}`);
+    console.log(`Cikgu AI Server is running on http://localhost:${PORT}`);
   });
 }
 
