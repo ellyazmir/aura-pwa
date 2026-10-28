@@ -41,7 +41,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const isUser = message.role === 'user';
   const s = getStrings(message.language);
 
-  // Handle Speech Synthesis for Cikgu AI
+  // Handle Speech Synthesis for Aura Tutor
   const handlePlayVoice = (textToRead: string) => {
     if (!('speechSynthesis' in window)) {
       alert(s.voiceUnsupported);
@@ -560,6 +560,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               <Zap className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
               <span>{onlineData.nextActionPrompt}</span>
             </p>
+          )}
+
+          {/* Small print (e.g. on-device model warning) */}
+          {onlineData.note && (
+            <p className="text-[11px] leading-snug text-slate-400 dark:text-slate-500">{onlineData.note}</p>
           )}
 
           {/* Quick replies + full solution */}

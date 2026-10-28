@@ -1,5 +1,5 @@
 {
-  "name": "Cikgu AI - KPM KSSR & KSSM Socratic Tutor",
+  "name": "Aura Tutor - KPM KSSR & KSSM Socratic Tutor",
   "description": "Patient, encouraging Malaysian education assistant guiding students through KSSR and KSSM curricula using a strict 3-phase Socratic method.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

@@ -44,7 +44,7 @@ export const SampleQuestionsModal: React.FC<SampleQuestionsModalProps> = ({
                 Bank Contoh Soalan KPM (SPM & UASA)
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Pilih versi BM atau English untuk memulakan bimbingan Cikgu AI
+                Pilih versi BM atau English untuk memulakan bimbingan Aura Tutor
               </p>
             </div>
           </div>

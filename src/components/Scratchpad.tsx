@@ -135,7 +135,7 @@ export const Scratchpad: React.FC<ScratchpadProps> = ({
       <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900 space-y-2">
         <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
           <Lightbulb className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-          <span>Cikgu AI akan menyemak tanpa terus mendedahkan jawapan akhir.</span>
+          <span>Aura Tutor akan menyemak tanpa terus mendedahkan jawapan akhir.</span>
         </div>
         <button
           onClick={handleSubmit}
@@ -143,7 +143,7 @@ export const Scratchpad: React.FC<ScratchpadProps> = ({
           className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 shadow-sm transition-all"
         >
           <Send className="w-4 h-4" />
-          <span>Hantar Langkah ke Cikgu AI (Semakan Fasa 2)</span>
+          <span>Hantar Langkah ke Aura Tutor (Semakan Fasa 2)</span>
         </button>
       </div>
 

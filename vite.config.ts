@@ -12,8 +12,8 @@ export default defineConfig(() => ({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Cikgu AI',
-        short_name: 'Cikgu AI',
+        name: 'Aura Tutor',
+        short_name: 'Aura Tutor',
         display: 'standalone',
         start_url: '/',
         background_color: '#f8fafc',
