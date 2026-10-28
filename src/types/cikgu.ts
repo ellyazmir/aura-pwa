@@ -42,6 +42,8 @@ export interface CikguAIResponse {
   formulaTemplate?: string;
   kbatPrompt?: string;
   nextActionPrompt: string;
+  /** Small print under the answer, e.g. the warning for answers made by the on-device model. */
+  note?: string;
   suggestedQuickReplies: string[];
   officialSkema?: OfficialSkema;
 }

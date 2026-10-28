@@ -1,5 +1,5 @@
 /**
- * Offline fallback for Cikgu AI.
+ * Offline fallback for Aura Tutor.
  *
  * Runs a small Qwen2.5 model fully inside the browser with WebAssembly (wllama = llama.cpp
  * compiled to WASM). It runs on the CPU, so it does NOT need WebGPU.
@@ -11,8 +11,8 @@
  * It returns a normal Response with the same { success, data } JSON, so the rest of the app
  * does not change.
  *
- * When there is no internet, the answer is ALWAYS an offline Study Pack (mode: 'offline'),
- * i.e. the same "offline page" the app shows in Mod Luar Talian.
+ * When there is no internet, the answer has the same shape and layout as the online (Socratic)
+ * answer: phases 1-3, a one-sentence hint, A/B/C options and the marking scheme.
  */
 import { Wllama } from '@wllama/wllama';
 import { detectConversationLanguage } from './language';
@@ -32,16 +32,21 @@ const CONFIG_PATHS = {
 // ---------------------------------------------------------------------------
 const MODELS = {
   small: {
+    id: 'small',
     label: 'Qwen2.5 0.5B (~400 MB)',
     url: 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf',
   },
   medium: {
+    id: 'medium',
     label: 'Qwen2.5 1.5B (~1.1 GB)',
     url: 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
   },
 };
 
 const READY_FLAG = 'cikgu.offlineModelReady';
+// Which URL the model was really downloaded from (Hugging Face or this server). wllama caches
+// the file under that URL, so loading it again later (also offline) must use the same one.
+const SOURCE_FLAG = 'cikgu.offlineModelSource';
 
 function pickModel() {
   const forced = localStorage.getItem('cikgu.offlineModel'); // 'small' | 'medium'
@@ -65,6 +70,23 @@ export function isOfflineModelReady(): boolean {
 }
 
 /**
+ * wllama takes the file size from the Content-Length of a HEAD request. When the host answers with
+ * an error (HTTP 403/429/5xx, a proxy page) or without Content-Length, the size is 0 and wllama fails
+ * with the unclear "Input model (or splits) must be non-empty Blob or File". Check it first, so the
+ * next source can be tried and the real reason is shown.
+ */
+async function checkSource(url: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(url, { method: 'HEAD' });
+  } catch {
+    return; // no network at all: wllama will try its offline cache
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!Number(res.headers.get('content-length'))) throw new Error('the host did not report the file size');
+}
+
+/**
  * Download + load the model. Call this while ONLINE (e.g. from a "Muat turun mod luar talian"
  * button) so the model is cached in the browser for later offline use.
  */
@@ -75,20 +97,44 @@ export function preloadOfflineModel(onProgress?: (percent: number) => void): Pro
   loading = (async () => {
     const model = pickModel();
     console.info('[offline] loading model:', model.label);
-    // `as any`: the asset-path type differs between wllama 1.x (5 files) and 2.x+ (2 wasm files).
-    // allowOffline is passed in both places because 2.x+ reads it from the constructor.
-    const instance = new Wllama(CONFIG_PATHS as any, { allowOffline: true } as any);
-    await instance.loadModelFromUrl(model.url, {
-      n_ctx: 2048, // room for the Study Pack prompt (~600 tokens) + answer (~700 tokens)
-      allowOffline: true, // use the cached copy when there is no internet
-      progressCallback: ({ loaded, total }: { loaded: number; total: number }) => {
-        if (onProgress && total > 0) onProgress(Math.round((loaded / total) * 100));
-      },
-    } as any);
-    wllama = instance;
-    localStorage.setItem(READY_FLAG, model.url);
-    console.info('[offline] model loaded');
-    return instance;
+
+    // Where to download from: the place used before (if any), Hugging Face, then this server.
+    const viaServer = new URL(`/api/offline-model/${model.id}`, location.origin).href;
+    const saved = localStorage.getItem(SOURCE_FLAG);
+    const candidates = [
+      ...new Set(
+        [saved && localStorage.getItem(READY_FLAG) === model.url ? saved : null, model.url, viaServer].filter(
+          (u): u is string => !!u
+        )
+      ),
+    ];
+
+    const errors: string[] = [];
+    for (const url of candidates) {
+      // `as any`: the asset-path type differs between wllama 1.x (5 files) and 2.x+ (2 wasm files).
+      // allowOffline is passed in both places because 2.x+ reads it from the constructor.
+      const instance = new Wllama(CONFIG_PATHS as any, { allowOffline: true } as any);
+      try {
+        await checkSource(url);
+        await instance.loadModelFromUrl(url, {
+          n_ctx: 2048, // room for the prompt with its example (~700 tokens) + answer (~450 tokens)
+          allowOffline: true, // use the cached copy when there is no internet
+          progressCallback: ({ loaded, total }: { loaded: number; total: number }) => {
+            if (onProgress && total > 0) onProgress(Math.round((loaded / total) * 100));
+          },
+        } as any);
+        wllama = instance;
+        localStorage.setItem(READY_FLAG, model.url);
+        localStorage.setItem(SOURCE_FLAG, url);
+        console.info('[offline] model loaded from', new URL(url).host);
+        return instance;
+      } catch (err: any) {
+        console.warn('[offline] download source failed:', url, err);
+        errors.push(`${new URL(url).host}: ${err?.message || err}`);
+        instance.exit?.().catch(() => {});
+      }
+    }
+    throw new Error(errors.join(' | '));
   })();
 
   loading.catch(() => {
@@ -102,43 +148,101 @@ export function preloadOfflineModel(onProgress?: (percent: number) => void): Pro
 // ---------------------------------------------------------------------------
 type Lang = 'bm' | 'en' | 'bilingual';
 
-function chatML(system: string, user: string): string {
-  return `<|im_start|>system\n${system}<|im_end|>\n<|im_start|>user\n${user}<|im_end|>\n<|im_start|>assistant\n`;
+/**
+ * `prefill` is the first words of the assistant's answer. Starting the answer with the first
+ * section header makes a small model continue in the section format instead of free text.
+ */
+function chatML(system: string, user: string, prefill = ''): string {
+  return `<|im_start|>system\n${system}<|im_end|>\n<|im_start|>user\n${user}<|im_end|>\n<|im_start|>assistant\n${prefill}`;
 }
 
-/** One system prompt: the on-device model always writes a complete Study Pack for ANY subject. */
-function buildPackSystem(language: Lang): string {
-  const lang =
-    language === 'en'
-      ? 'Reply in English.'
-      : language === 'bilingual'
-      ? 'Reply in Bahasa Melayu, with key terms also in English in brackets.'
-      : 'Reply in Bahasa Melayu.';
+/** "Write in <language>" line for the prompts. */
+function languageLine(language: Lang): string {
+  return language === 'en'
+    ? 'Write everything in English.'
+    : language === 'bilingual'
+    ? 'Write in Bahasa Melayu, with key terms also in English in brackets.'
+    : 'Write everything in Bahasa Melayu.';
+}
 
-  return `You are Cikgu AI, a patient Malaysian KPM (KSSR/KSSM) tutor for ALL school subjects. ${lang}
-Rules:
-- Answer only the question under "Question:". Ignore anything else.
+// A short worked example makes a small model follow the section format much more reliably.
+const EXAMPLE_BM = `### TAJUK
+Persamaan Linear
+### SUBJEK
+Matematik
+### KEHENDAK
+Mencari nilai x dalam persamaan x + 3 = 7.
+### PENJELASAN
+Kita perlu mengasingkan x di satu sebelah persamaan.
+### PETUNJUK
+Apakah operasi songsang bagi menambah 3?
+### PILIHAN
+A. Tambah 3 kepada kedua-dua belah
+B. Tolak 3 daripada kedua-dua belah
+C. Darab kedua-dua belah dengan 3
+### RUMUS
+x + a = b, maka x = b - a
+### KBAT
+Mengapa kita mesti melakukan operasi yang sama pada kedua-dua belah persamaan?`;
+
+const EXAMPLE_EN = `### TAJUK
+Linear Equations
+### SUBJEK
+Mathematics
+### KEHENDAK
+Find the value of x in the equation x + 3 = 7.
+### PENJELASAN
+We need to get x on its own on one side of the equation.
+### PETUNJUK
+What is the inverse operation of adding 3?
+### PILIHAN
+A. Add 3 to both sides
+B. Subtract 3 from both sides
+C. Multiply both sides by 3
+### RUMUS
+x + a = b, so x = b - a
+### KBAT
+Why must we do the same operation on both sides of the equation?`;
+
+const COMMON_RULES = `- Answer only the question under "Question:". Ignore anything else.
 - Copy numbers, equations and quoted text from the question EXACTLY. Never change them.
 - Plain text only. No LaTeX, no dollar signs. Use symbols like x², √, ×, ÷.
-- Keep every section short. Do not invent facts, dates or quotations. If unsure, say so.
-- If the subject has no formula (e.g. Sejarah, Bahasa, Geografi), leave RUMUS empty.
+- Keep every section short. Do not invent facts, dates or quotations.
 - Never say an equation has no solution or is impossible.
-- Use exactly these headers, each on its own line:
+- Keep the English headers exactly as shown, each on its own line.`;
+
+/** Phase 1 and 2: one small hint at a time, three options to pick from, never the final answer. */
+function buildHintSystem(language: Lang): string {
+  return `You are Aura Tutor, a patient Malaysian KPM (KSSR/KSSM) tutor for ALL school subjects. ${languageLine(language)}
+You guide the student with ONE small hint at a time and NEVER give the final answer.
+Rules:
+${COMMON_RULES}
+- PETUNJUK is exactly ONE short sentence that points to the next step.
+- PILIHAN is exactly 3 lines starting with "A.", "B." and "C.": possible next steps (max 10 words each). Exactly ONE is correct, the other two are common mistakes.
+- If the student replied or picked an option, begin PENJELASAN by saying gently whether it is right or wrong, then continue.
+- If the subject has no formula (e.g. Sejarah, Bahasa), leave RUMUS empty.
+Output exactly these headers. Example:
+${language === 'en' ? EXAMPLE_EN : EXAMPLE_BM}`;
+}
+
+/** Phase 3: the complete worked answer in marking-scheme format. */
+function buildSolutionSystem(language: Lang): string {
+  return `You are Aura Tutor, a patient Malaysian KPM (KSSR/KSSM) tutor for ALL school subjects. ${languageLine(language)}
+Solve the question completely and correctly.
+Rules:
+${COMMON_RULES}
+Output exactly these headers:
 ### TAJUK
 (topic title, max 8 words)
-### UNIT
-(chapter or unit name)
-### KONSEP
-(2 sentences: the key idea needed)
-### RUMUS
-(key formula, or leave empty)
-### PANDUAN
-(one sentence: how the student should start)
+### SUBJEK
+(subject name only)
+### KEHENDAK
+(one sentence: what the question asks)
+### PENJELASAN
+(one sentence: confirm the method)
 ### LANGKAH
 (3 to 5 lines, format: 1. what you do :: the working or key point :: K1)
-(calculation: K1 method, N1 answer, P1 knowledge. Other subjects: use 1m per point)
-### KESILAPAN
-(one common mistake)
+(calculation: K1 method, N1 answer, P1 knowledge. Other subjects: 1m per point)
 ### JAWAPAN
 (final answer with unit)
 ### KBAT
@@ -147,9 +251,60 @@ Rules:
 (one exam tip)`;
 }
 
+// Section names the model may write (Malay headers from the prompt, or English ones by habit).
+const SECTION_ALIASES: Record<string, string> = {
+  TAJUK: 'TAJUK', TOPIC: 'TAJUK', TITLE: 'TAJUK',
+  SUBJEK: 'SUBJEK', SUBJECT: 'SUBJEK',
+  KEHENDAK: 'KEHENDAK', QUESTION: 'KEHENDAK',
+  PENJELASAN: 'PENJELASAN', EXPLANATION: 'PENJELASAN',
+  PETUNJUK: 'PETUNJUK', HINT: 'PETUNJUK',
+  PILIHAN: 'PILIHAN', OPTIONS: 'PILIHAN', CHOICES: 'PILIHAN',
+  RUMUS: 'RUMUS', FORMULA: 'RUMUS',
+  KBAT: 'KBAT',
+  LANGKAH: 'LANGKAH', STEPS: 'LANGKAH',
+  JAWAPAN: 'JAWAPAN', ANSWER: 'JAWAPAN',
+  TIPS: 'TIPS', TIP: 'TIPS',
+};
+const SECTION_NAMES = Object.keys(SECTION_ALIASES).join('|');
+// "### NAME", "**NAME**" or "NAME:" (a plain word at the start of a sentence is NOT a header),
+// optionally followed by text on the same line.
+const HEADER_PATTERNS = [
+  new RegExp(`^\\s*#{1,6}\\s*(${SECTION_NAMES})\\b\\**\\s*:?\\s*(.*)$`, 'i'),
+  new RegExp(`^\\s*\\*\\*\\s*(${SECTION_NAMES})\\b\\s*:?\\s*\\*\\*\\s*:?\\s*(.*)$`, 'i'),
+  new RegExp(`^\\s*(${SECTION_NAMES})\\s*:\\s*(.*)$`, 'i'),
+];
+
+function matchHeader(line: string): RegExpMatchArray | null {
+  for (const re of HEADER_PATTERNS) {
+    const m = line.match(re);
+    if (m) return m;
+  }
+  return null;
+}
+
+/** Split the model output into sections. The first copy of a section wins (repeats are ignored). */
+function parseSections(text: string): Record<string, string> {
+  const parts: Record<string, string[]> = {};
+  let current: string | null = null;
+  for (const line of text.split('\n')) {
+    const hit = matchHeader(line);
+    if (hit) {
+      const name = SECTION_ALIASES[hit[1].toUpperCase()];
+      if (parts[name]) {
+        current = null; // repeated section: skip its lines
+      } else {
+        current = name;
+        parts[name] = [hit[2] ?? ''];
+      }
+    } else if (current) {
+      parts[current].push(line);
+    }
+  }
+  return Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, v.join('\n').trim()]));
+}
+
 function section(text: string, name: string): string {
-  const re = new RegExp(`###\\s*${name}\\s*\\n([\\s\\S]*?)(?=\\n###\\s|$)`, 'i');
-  return (text.match(re)?.[1] || '').trim();
+  return parseSections(text)[name] || '';
 }
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -161,20 +316,76 @@ const LEVEL_LABEL: Record<string, string> = {
 
 const TEXT = {
   bm: {
-    encouragement: 'Cikgu bantu anda dalam mod luar talian. Mari cuba langkah demi langkah!',
+    encouragement: 'Bagus kerana mencuba! Mari kita selesaikan langkah demi langkah.',
     disclaimer:
       'ℹ️ Dijana oleh model AI kecil dalam peranti anda (tanpa internet). Jawapan mungkin kurang tepat, sila semak dengan cikgu atau buku teks.',
-    hint1: 'Petunjuk 1',
-    hint2: 'Petunjuk 2',
+    phaseNames: ['Petunjuk Pertama', 'Semakan & KBAT', 'Skema Penuh'],
+    phase: 'Fasa',
+    hintTitle: ['Petunjuk 1', 'Petunjuk 2', 'Skema Jawapan'],
+    next: 'Pilih satu pilihan atau taip langkah anda sendiri.',
+    nextDone: 'Cuba soalan lain atau mulakan sesi baharu.',
+    replies: ['Beri petunjuk lagi', 'Terangkan rumus ini', 'Saya tak faham'],
+    markingCode: 'Dalam peranti (tidak rasmi)',
+    defaultHint: [
+      'Tulis dahulu apa yang diberi dan apa yang dicari dalam soalan.',
+      'Semak langkah anda tadi, kemudian cuba langkah seterusnya.',
+    ],
   },
   en: {
-    encouragement: "I'm helping you in offline mode. Let's go step by step!",
+    encouragement: "Good effort! Let's solve it step by step.",
     disclaimer:
       'ℹ️ Generated by a small AI model running on your device (no internet). It may be less accurate, so please check with your teacher or textbook.',
-    hint1: 'Hint 1',
-    hint2: 'Hint 2',
+    phaseNames: ['First Hint', 'Check & HOTS', 'Full Scheme'],
+    phase: 'Phase',
+    hintTitle: ['Hint 1', 'Hint 2', 'Answer Scheme'],
+    next: 'Pick an option or type your own next step.',
+    nextDone: 'Try another question or start a new session.',
+    replies: ['Give me another hint', 'Explain this formula', "I don't understand"],
+    markingCode: 'On-device (unofficial)',
+    defaultHint: [
+      'First write down what is given and what the question asks.',
+      'Check your last step, then try the next one.',
+    ],
   },
 };
+
+/** First sentence only (does not split on decimals like 3.5). */
+function firstSentence(text: string): string {
+  const t = text.trim().replace(/\s+/g, ' ');
+  const end = /[.!?](?=\s+[A-Z0-9"'(]|$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = end.exec(t))) {
+    const head = t.slice(0, m.index + 1);
+    if (/(^|\s)[A-Za-z0-9]\.$/.test(head)) continue; // "A." or "3." is a label, not the end of a sentence
+    return head.trim();
+  }
+  return t;
+}
+
+/** When the model ignored the headers: the first real sentence that is not an option line. */
+function looseHint(out: string): string {
+  for (const line of out.split('\n')) {
+    const t = line.trim().replace(/^[-*•]\s*/, '');
+    if (t.length < 15 || matchHeader(t) || /^[A-Ca-c][.):]\s/.test(t)) continue;
+    return firstSentence(t);
+  }
+  return '';
+}
+
+/** Lines such as "A. text", "B) text" or "C: text" -> ["text", ...] (max 3, no duplicates). */
+function parseOptions(block: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of block.split('\n')) {
+    const m = line.trim().match(/^[A-Ca-c][.):]\s*(.+)$/);
+    const text = m?.[1]?.trim();
+    if (!text || seen.has(text.toLowerCase())) continue;
+    seen.add(text.toLowerCase());
+    out.push(text);
+    if (out.length === 3) break;
+  }
+  return out.length >= 2 ? out : [];
+}
 
 // ---------------------------------------------------------------------------
 // Pick the CURRENT question (not the first one in the chat)
@@ -247,10 +458,19 @@ export function subscribeOfflineStream(cb: StreamCb): () => void {
 }
 
 // ---------------------------------------------------------------------------
-// Generate a Study Pack in the same shape the server returns for mode "offline"
+// Generate an answer in the SAME shape the server returns for the online (Socratic) mode
 // ---------------------------------------------------------------------------
+const PREFILL = '### TAJUK\n';
+
 async function generateOffline(body: any): Promise<any> {
-  const { messages = [], educationLevel = 'auto', subject = 'Umum', language: requested = 'auto' } = body;
+  const {
+    messages = [],
+    educationLevel = 'auto',
+    subject = 'Umum',
+    language: requested = 'auto',
+    requestDirectPhase3 = false,
+    userAttempt = '',
+  } = body;
 
   const question = currentQuestion(messages);
   // The UI no longer has a language picker: answer in the language the question is written in.
@@ -258,77 +478,114 @@ async function generateOffline(body: any): Promise<any> {
   const t = language === 'en' ? TEXT.en : TEXT.bm;
   const solved = solveLinear(question);
 
+  const userMsgs = messages.filter((m: any) => m.role === 'user');
+  const lastUser: string = String(userMsgs[userMsgs.length - 1]?.content ?? '');
+  const isNewQuestion = looksLikeNewQuestion(lastUser);
+  const phase: 1 | 2 | 3 = requestDirectPhase3
+    ? 3
+    : (isNewQuestion || userMsgs.length <= 1) && !userAttempt
+    ? 1
+    : 2;
+
+  // Prompt for the small model: the question, what we already know is correct, and the recent turns.
+  const recent = messages
+    .slice(-5, -1)
+    .map((m: any) => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${String(m.content).slice(0, 200)}`)
+    .join('\n');
+  const isFollowUp = phase !== 1 && lastUser && lastUser !== question;
+  const userPrompt =
+    `Question:\n${question.slice(0, 600)}` +
+    (solved
+      ? `\nVerified answer (secret${phase === 3 ? '' : ', never write it'}): ${solved.v} = ${solved.value}.` +
+        (phase === 3
+          ? ' Write steps that lead to exactly this answer. To undo "- n" add n to both sides; to undo "+ n" subtract n.'
+          : ' The correct option in PILIHAN must lead toward it.')
+      : '') +
+    (phase !== 1 && recent ? `\n\nRecent conversation:\n${recent}` : '') +
+    (isFollowUp ? `\n\nStudent's latest reply:\n${lastUser.slice(0, 300)}` : '');
+
   const instance = await preloadOfflineModel();
   const raw: string = await instance.createCompletion(
     chatML(
-      buildPackSystem(language as Lang),
-      `Question:\n${question.slice(0, 600)}` +
-        (solved
-          ? `\nVerified answer: ${solved.v} = ${solved.value}. Write steps that lead to exactly this answer. To undo "- n" add n to both sides; to undo "+ n" subtract n.`
-          : '')
+      phase === 3 ? buildSolutionSystem(language) : buildHintSystem(language),
+      userPrompt,
+      PREFILL
     ),
     {
-      nPredict: 700,
-      sampling: { temp: 0.2, top_k: 40, top_p: 0.9 },
-      // No live streaming: the student only sees the finished Study Pack, not the raw model text.
+      nPredict: phase === 3 ? 450 : 300,
+      // penalty_repeat stops the small model from looping on the same line
+      sampling: { temp: 0.2, top_k: 40, top_p: 0.9, penalty_repeat: 1.15, penalty_last_n: 128 },
+      // No live streaming: the student only sees the finished, parsed answer, not raw model text.
     } as any
   );
-  const out = raw.replace(/<\|im_(start|end)\|>/g, '').trim();
-
-  const steps = section(out, 'LANGKAH')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line, i) => {
-      const parts = line.replace(/^\d+[.)]\s*/, '').split('::').map((p) => p.trim());
-      return {
-        stepNumber: i + 1,
-        stepDescription: parts[0] || line,
-        workingMath: parts[1] || '',
-        marksScheme: parts[2] || '',
-      };
-    });
-  const safeSteps = steps.length
-    ? steps
-    : [{ stepNumber: 1, stepDescription: out, workingMath: '', marksScheme: '' }];
+  const out = (PREFILL + raw).replace(/<\|im_(start|end)\|>/g, '').trim();
+  console.info('[offline] raw model output:\n' + out);
 
   // Show the student's own question instead of the small model's paraphrase:
   // a small model sometimes rewrites the question wrongly.
   const kehendak = question.length > 300 ? question.slice(0, 300) + '...' : question;
+  const topic = section(out, 'TAJUK').split('\n')[0].trim();
+  const subjectBadge =
+    subject && subject !== 'Umum' ? subject : section(out, 'SUBJEK').split('\n')[0].trim().slice(0, 30);
+
+  const base = {
+    mode: 'online' as const,
+    phase,
+    phaseTitle: `${t.phase} ${phase}: ${topic || t.phaseNames[phase - 1]}`,
+    curriculumBadge:
+      educationLevel && educationLevel !== 'auto' ? LEVEL_LABEL[educationLevel] || 'KPM' : 'KPM',
+    subjectBadge,
+    encouragement: t.encouragement,
+    kehendakSoalan: kehendak,
+    explanation: section(out, 'PENJELASAN'),
+    note: t.disclaimer,
+    nextActionPrompt: phase === 3 ? t.nextDone : t.next,
+    suggestedQuickReplies: phase === 3 ? [] : t.replies,
+  };
+
+  if (phase === 3) {
+    const steps = section(out, 'LANGKAH')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line, i) => {
+        const parts = line.replace(/^\d+[.)]\s*/, '').split('::').map((p) => p.trim());
+        return {
+          stepNumber: i + 1,
+          stepDescription: parts[0] || line,
+          workingMath: parts[1] || '',
+          marksScheme: parts[2] || '',
+        };
+      });
+    return {
+      ...base,
+      hint: { hintNumber: 3, hintTitle: t.hintTitle[2], hintBody: '' },
+      hintOptions: [],
+      officialSkema: {
+        markingCode: t.markingCode,
+        steps: steps.length ? steps : [{ stepNumber: 1, stepDescription: out, workingMath: '', marksScheme: '' }],
+        finalAnswerUnit: solved ? `${solved.v} = ${solved.value}` : section(out, 'JAWAPAN'),
+        kbatSummary: section(out, 'KBAT'),
+        tipsPemeriksa: section(out, 'TIPS'),
+      },
+    };
+  }
 
   return {
-    mode: 'offline' as const,
-    topicTag: {
-      subject,
-      level: LEVEL_LABEL[educationLevel] || 'KPM',
-      unit: section(out, 'UNIT') || (language === 'en' ? 'Topic' : 'Topik'),
-      title: section(out, 'TAJUK') || kehendak.slice(0, 40),
+    ...base,
+    hint: {
+      hintNumber: phase,
+      hintTitle: t.hintTitle[phase - 1],
+      hintBody:
+        firstSentence(section(out, 'PETUNJUK')) ||
+        looseHint(out) ||
+        t.defaultHint[phase - 1],
     },
-    warmAcknowledgment: `${t.encouragement} ${t.disclaimer}`,
-    kehendakSoalan: kehendak,
-    hint1: {
-      title: t.hint1,
-      concept: section(out, 'KONSEP') || out,
-      coreFormula: section(out, 'RUMUS'),
-      guide: section(out, 'PANDUAN'),
-    },
-    hint2: {
-      title: t.hint2,
-      intermediateSteps: safeSteps.map((s) => s.stepDescription),
-      scaffoldingNotes: '',
-      commonMistakes: section(out, 'KESILAPAN'),
-    },
-    finalSolution: {
-      markingSchemeCode: language === 'en' ? 'On-device (unofficial)' : 'Dalam peranti (tidak rasmi)',
-      steps: safeSteps,
-      finalAnswer: solved
-        ? `${solved.v} = ${solved.value}`
-        : section(out, 'JAWAPAN') || safeSteps[safeSteps.length - 1].workingMath,
-      siUnit: '',
-      kbatJustification: section(out, 'KBAT'),
-      examinerTips: section(out, 'TIPS'),
-    },
-    suggestedQuickReplies: [],
+    hintOptions: parseOptions(section(out, 'PILIHAN')).length
+      ? parseOptions(section(out, 'PILIHAN'))
+      : parseOptions(out),
+    formulaTemplate: section(out, 'RUMUS') || undefined,
+    kbatPrompt: section(out, 'KBAT') || undefined,
   };
 }
 
@@ -346,11 +603,14 @@ function jsonResponse(payload: unknown, status = 200): Response {
 export async function hasInternet(): Promise<boolean> {
   if (!navigator.onLine) return false;
   try {
-    await fetch('https://api.groq.com/openai/v1/models', {
-      mode: 'no-cors',
-      cache: 'no-store',
-      signal: AbortSignal.timeout(3000),
-    });
+    // Two public connectivity endpoints that answer 204/200 without an API key (so no 401 in the
+    // console). The internet counts as available when either one answers.
+    const ping = (url: string) =>
+      fetch(url, { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(3000) });
+    await Promise.any([
+      ping('https://www.gstatic.com/generate_204'),
+      ping('https://cloudflare.com/cdn-cgi/trace'),
+    ]);
     return true;
   } catch {
     return false;

@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Readable } from 'node:stream';
 
 dotenv.config();
 
@@ -21,6 +22,50 @@ app.use((_req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
   next();
+});
+
+// Offline model download through this server.
+// Fallback for browsers that cannot download the model straight from Hugging Face
+// (blocked CDN, proxy, or a reply without Content-Length, which makes wllama report
+// "Input model (or splits) must be non-empty Blob or File").
+// Only these two fixed files can be fetched, so this is not an open proxy.
+const OFFLINE_MODEL_URLS: Record<string, string> = {
+  small:
+    'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf',
+  medium:
+    'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
+};
+
+app.get('/api/offline-model/:tier', async (req, res) => {
+  const url = Object.hasOwn(OFFLINE_MODEL_URLS, req.params.tier)
+    ? OFFLINE_MODEL_URLS[req.params.tier]
+    : undefined;
+  if (!url) return res.status(404).json({ error: 'Unknown model.' });
+
+  const abort = new AbortController();
+  res.on('close', () => abort.abort()); // browser cancelled: stop downloading
+  try {
+    const upstream = await fetch(url, {
+      method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+      signal: abort.signal,
+    });
+    if (!upstream.ok) {
+      return res.status(502).json({ error: `Model host answered HTTP ${upstream.status}.` });
+    }
+    res.status(200);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    for (const h of ['content-length', 'etag']) {
+      const v = upstream.headers.get(h);
+      if (v) res.setHeader(h, v);
+    }
+    if (req.method === 'HEAD' || !upstream.body) return res.end();
+    Readable.fromWeb(upstream.body as any).pipe(res);
+  } catch (err: any) {
+    if (abort.signal.aborted) return;
+    console.warn('[offline-model] download failed:', err?.message || err);
+    if (!res.headersSent) res.status(502).json({ error: 'Could not reach the model host.' });
+    else res.destroy();
+  }
 });
 
 // LLM providers: Gemini first, Groq as fallback (both OpenAI-compatible, plain HTTPS, no extra SDK)
@@ -241,7 +286,7 @@ ${shape}`;
 }
 
 const CIKGU_SYSTEM_PROMPT = `
-You are "Cikgu AI", an adaptive, patient, and structured educational assistant expert in ALL subjects of the Malaysian Ministry of Education (KPM) primary (KSSR) and secondary (KSSM) national curricula: Matematik, Matematik Tambahan, Sains, Fizik, Kimia, Biologi, Bahasa Melayu, English, Sejarah, Geografi, Pendidikan Islam, Pendidikan Moral, Ekonomi, Prinsip Perakaunan, Perniagaan, Sains Komputer, RBT, and any other school subject.
+You are "Aura Tutor", an adaptive, patient, and structured educational assistant expert in ALL subjects of the Malaysian Ministry of Education (KPM) primary (KSSR) and secondary (KSSM) national curricula: Matematik, Matematik Tambahan, Sains, Fizik, Kimia, Biologi, Bahasa Melayu, English, Sejarah, Geografi, Pendidikan Islam, Pendidikan Moral, Ekonomi, Prinsip Perakaunan, Perniagaan, Sains Komputer, RBT, and any other school subject.
 
 [CONTEXT & INSIGHT]
 Malaysian students ask academic questions across all subjects:
@@ -554,7 +599,7 @@ INSTRUCTIONS:
     parsed.mode = 'online';
     return res.json({ success: true, data: parsed });
   } catch (error: any) {
-    console.error('Error generating Cikgu AI response:', error);
+    console.error('Error generating Aura Tutor response:', error);
     return res.status(500).json({
       error: 'Gagal memproses soalan. Sila cuba lagi sebentar lagi.',
       details: error?.message || 'Unknown error',
@@ -581,7 +626,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Cikgu AI Server is running on http://localhost:${PORT}`);
+    console.log(`Aura Tutor Server is running on http://localhost:${PORT}`);
   });
 }
 

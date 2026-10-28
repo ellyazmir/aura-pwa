@@ -1,9 +1,9 @@
 import type { ReplyLanguage } from './language';
 
-/** Fixed texts around Cikgu AI's answers. They follow the language of the conversation. */
+/** Fixed texts around Aura Tutor's answers. They follow the language of the conversation. */
 const BM = {
   // loading + errors
-  thinking: 'Cikgu AI sedang meneliti soalan anda...',
+  thinking: 'Aura Tutor sedang meneliti soalan anda...',
   thinkingOffline: 'Model dalam peranti sedang berfikir, ini mungkin mengambil masa',
   error: (detail: string) =>
     `Maaf adik, Cikgu menghadapi masalah teknikal: ${detail}. Sila cuba hantar semula soalan anda sebentar lagi.`,
@@ -11,7 +11,7 @@ const BM = {
   myChoice: 'Pilihan saya',
   // voice
   voiceUnsupported: 'Pelayar web anda tidak menyokong fungsi suara.',
-  listen: 'Dengar Suara Cikgu AI',
+  listen: 'Dengar Suara Aura Tutor',
   // online (Socratic) answer
   phase: 'Fasa',
   question: 'Kehendak soalan',
@@ -48,13 +48,13 @@ const BM = {
 };
 
 const EN: typeof BM = {
-  thinking: 'Cikgu AI is looking at your question...',
+  thinking: 'Aura Tutor is looking at your question...',
   thinkingOffline: 'The on-device model is thinking, this may take a while',
   error: (detail: string) =>
     `Sorry, Cikgu ran into a technical problem: ${detail}. Please try sending your question again in a moment.`,
   myChoice: 'My choice',
   voiceUnsupported: 'Your browser does not support voice.',
-  listen: 'Listen to Cikgu AI',
+  listen: 'Listen to Aura Tutor',
   phase: 'Phase',
   question: 'What the question asks',
   formula: 'Formula',

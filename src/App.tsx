@@ -36,6 +36,7 @@ import {
 } from './lib/offlineFallback';
 import { detectConversationLanguage } from './lib/language';
 import { getStrings } from './lib/i18n';
+import { Theme, applyTheme, getTheme } from './lib/theme';
 
 import { Header } from './components/Header';
 import { PhaseTracker } from './components/PhaseTracker';
@@ -56,6 +57,7 @@ import {
 import { SAMPLE_QUESTIONS } from './data/kpmData';
 
 export default function App() {
+  const [theme, setTheme] = useState<Theme>(getTheme());
   const [curriculumLevel, setCurriculumLevel] = useState<CurriculumLevel>('auto');
   const [selectedSubject, setSelectedSubject] = useState<string>('Umum');
 
@@ -77,7 +79,7 @@ export default function App() {
 
   // Offline (WASM) model state
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  // The mode follows the connection: internet = Socratic chat, no internet = Study Pack
+  // Shown in the header badge; the answer layout is the same online and offline
   const mode: OperationalMode = isOnline ? 'online' : 'offline';
   const [offlineReady, setOfflineReady] = useState(isOfflineModelReady());
   const [modelProgress, setModelProgress] = useState<number | null>(null);
@@ -159,7 +161,7 @@ export default function App() {
     }
   };
 
-  // Submit message to Cikgu AI API
+  // Submit message to Aura Tutor API
   const handleSendMessage = async (
     textToSend?: string,
     options?: { requestDirectPhase3?: boolean; userAttempt?: string }
@@ -196,7 +198,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode,
+          mode: 'online', // offline answers have the same Socratic format
           messages: newMessages.map((m) => ({
             role: m.role,
             content: m.content,
@@ -217,7 +219,7 @@ export default function App() {
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Gagal menghubungi pelayan Cikgu AI.');
+        throw new Error(errJson.error || 'Gagal menghubungi pelayan Aura Tutor.');
       }
 
       const resData = await response.json();
@@ -390,6 +392,11 @@ export default function App() {
       {/* Malaysian KPM Header */}
       <Header
         mode={mode}
+        theme={theme}
+        onThemeChange={(next) => {
+          setTheme(next);
+          applyTheme(next);
+        }}
         onOpenSampleQuestions={() => setIsSampleModalOpen(true)}
       />
 
@@ -397,15 +404,13 @@ export default function App() {
       {!isOnline && (
         <div className="bg-slate-800 text-slate-100 text-xs px-4 py-1.5 text-center">
           {offlineReady
-            ? 'Tiada internet. Cikgu AI menggunakan model dalam peranti dan menjawab dengan Study Pack lengkap (mungkin kurang tepat).'
-            : 'Tiada internet. Muat turun model luar talian semasa dalam talian untuk guna Cikgu AI tanpa internet.'}
+            ? 'Tiada internet. Aura Tutor menggunakan model dalam peranti dan menjawab dengan bimbingan yang sama (mungkin kurang tepat).'
+            : 'Tiada internet. Muat turun model luar talian semasa dalam talian untuk guna Aura Tutor tanpa internet.'}
         </div>
       )}
 
       {/* Online Mode Socratic Phase Tracker */}
-      {mode === 'online' && (
-        <PhaseTracker currentPhase={currentPhase} />
-      )}
+      <PhaseTracker currentPhase={currentPhase} />
 
       {/* Main Container */}
       <div className="flex-1 flex overflow-hidden relative">
@@ -424,7 +429,7 @@ export default function App() {
                   Apa yang anda mahu belajar hari ini?
                 </h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                  Cikgu AI membimbing langkah demi langkah mengikut sukatan KPM, tanpa terus memberi jawapan.
+                  Aura Tutor membimbing langkah demi langkah mengikut sukatan KPM, tanpa terus memberi jawapan.
                 </p>
                 {isOnline && (
                   <button

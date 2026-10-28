@@ -1,5 +1,5 @@
 ==============================================================================
-CIKGU AI (aura-pwa) - PROJECT REQUIREMENTS
+AURA TUTOR (aura-pwa) - PROJECT REQUIREMENTS
 KPM KSSR & KSSM Socratic Tutor (Progressive Web App)
 ==============================================================================
 

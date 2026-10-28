@@ -1,14 +1,19 @@
 import React from 'react';
 import { GraduationCap, BookOpen } from 'lucide-react';
 import { OperationalMode } from '../types/cikgu';
+import { Theme, THEME_COLORS } from '../lib/theme';
 
 interface HeaderProps {
   mode: OperationalMode;
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
   onOpenSampleQuestions: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   mode,
+  theme,
+  onThemeChange,
   onOpenSampleQuestions,
 }) => {
   return (
@@ -21,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
               <GraduationCap className="w-5 h-5" />
             </div>
             <div className="leading-tight">
-              <h1 className="text-base font-bold text-slate-900 dark:text-white">Cikgu AI</h1>
+              <h1 className="text-base font-bold text-slate-900 dark:text-white">Aura Tutor</h1>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">KSSR &amp; KSSM</p>
             </div>
           </div>
@@ -37,8 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
               title={
                 mode === 'online'
-                  ? 'Ada internet: bimbingan Sokratik 3 fasa'
-                  : 'Tiada internet: Study Pack dijana dalam peranti'
+                  ? 'Ada internet: Aura Tutor dalam talian'
+                  : 'Tiada internet: jawapan dijana oleh model dalam peranti'
               }
             >
               <span
@@ -46,7 +51,32 @@ export const Header: React.FC<HeaderProps> = ({
                   mode === 'online' ? 'bg-emerald-500' : 'bg-amber-500'
                 }`}
               />
-              <span>{mode === 'online' ? 'Online · Sokratik' : 'Luar Talian · Study Pack'}</span>
+              <span>{mode === 'online' ? 'Online' : 'Offline'}</span>
+            </div>
+
+            {/* Colour theme */}
+            <div className="flex items-center gap-1.5" role="radiogroup" aria-label="Tema warna">
+              {(
+                [
+                  ['blue', 'Biru'],
+                  ['purple', 'Ungu'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={theme === value}
+                  aria-label={`Tema ${label.toLowerCase()}`}
+                  title={`Tema ${label.toLowerCase()}`}
+                  onClick={() => onThemeChange(value)}
+                  style={{ backgroundColor: THEME_COLORS[value] }}
+                  className={`w-5 h-5 rounded-full transition-all ${
+                    theme === value
+                      ? 'ring-2 ring-offset-2 ring-slate-400 dark:ring-slate-300 dark:ring-offset-slate-900'
+                      : 'opacity-60 hover:opacity-100'
+                  }`}
+                />
+              ))}
             </div>
 
             <button

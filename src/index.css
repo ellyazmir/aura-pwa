@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+/*
+ * Colour themes. The app's accent colour is Tailwind's blue (and indigo) palette, which is the
+ * default "blue" theme. The "purple" theme points the same variables at the purple palette,
+ * so every bg-blue-*, text-blue-*, border-blue-* ... turns purple without touching the components.
+ * (Unlayered rules like this one win over Tailwind's own theme layer.)
+ */
+:root[data-theme='purple'] {
+  --color-blue-50: oklch(97.7% 0.014 308.299);
+  --color-blue-100: oklch(94.6% 0.033 307.174);
+  --color-blue-200: oklch(90.2% 0.063 306.703);
+  --color-blue-300: oklch(82.7% 0.119 306.383);
+  --color-blue-400: oklch(71.4% 0.203 305.504);
+  --color-blue-500: oklch(62.7% 0.265 303.9);
+  --color-blue-600: oklch(55.8% 0.288 302.321);
+  --color-blue-700: oklch(49.6% 0.265 301.924);
+  --color-blue-800: oklch(43.8% 0.218 303.724);
+  --color-blue-900: oklch(38.1% 0.176 304.987);
+  --color-blue-950: oklch(29.1% 0.149 302.717);
+
+  --color-indigo-50: oklch(97.7% 0.014 308.299);
+  --color-indigo-100: oklch(94.6% 0.033 307.174);
+  --color-indigo-200: oklch(90.2% 0.063 306.703);
+  --color-indigo-300: oklch(82.7% 0.119 306.383);
+  --color-indigo-400: oklch(71.4% 0.203 305.504);
+  --color-indigo-500: oklch(62.7% 0.265 303.9);
+  --color-indigo-600: oklch(55.8% 0.288 302.321);
+  --color-indigo-700: oklch(49.6% 0.265 301.924);
+  --color-indigo-800: oklch(43.8% 0.218 303.724);
+  --color-indigo-900: oklch(38.1% 0.176 304.987);
+  --color-indigo-950: oklch(29.1% 0.149 302.717);
+}

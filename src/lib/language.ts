@@ -1,5 +1,5 @@
 /**
- * Decide which language Cikgu AI should answer in. The header no longer has a language picker,
+ * Decide which language Aura Tutor should answer in. The header no longer has a language picker,
  * so the app looks at what the student actually wrote.
  */
 export type ReplyLanguage = 'bm' | 'en';
