@@ -24,7 +24,9 @@ When there is no internet, a small Qwen2.5 model runs inside the browser
 - Modern browser with WebAssembly support (Chrome, Edge, Firefox, Safari)
   - Cross-origin isolation (set by server.ts) enables multi-threaded offline AI
   - Offline model needs about 400 MB (0.5B) or 1.1 GB (1.5B) of browser storage
-  - 1.5B model is chosen only when: crossOriginIsolated, >= 8 GB RAM, >= 8 cores
+  - 0.5B is the default. 1.5B is chosen only on a desktop-class device:
+    crossOriginIsolated, >= 8 GB RAM, >= 12 CPU threads, not a phone/tablet
+  - To force one: localStorage.setItem('cikgu.offlineModel', 'small' or 'medium')
 
 3. EXTERNAL SERVICES / ACCOUNTS
 ------------------------------------------------------------------------------

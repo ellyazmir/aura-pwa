@@ -1,5 +1,5 @@
 import React from 'react';
-import { GraduationCap, BookOpen } from 'lucide-react';
+import { GraduationCap, BookOpen, History } from 'lucide-react';
 import { OperationalMode } from '../types/cikgu';
 import { Theme, THEME_COLORS } from '../lib/theme';
 
@@ -7,6 +7,7 @@ interface HeaderProps {
   mode: OperationalMode;
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
+  onOpenHistory: () => void;
   onOpenSampleQuestions: () => void;
 }
 
@@ -14,6 +15,7 @@ export const Header: React.FC<HeaderProps> = ({
   mode,
   theme,
   onThemeChange,
+  onOpenHistory,
   onOpenSampleQuestions,
 }) => {
   return (
@@ -78,6 +80,15 @@ export const Header: React.FC<HeaderProps> = ({
                 />
               ))}
             </div>
+
+            <button
+              onClick={onOpenHistory}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              title="Riwayat sembang"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Riwayat</span>
+            </button>
 
             <button
               onClick={onOpenSampleQuestions}

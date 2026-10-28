@@ -37,6 +37,16 @@ import {
 import { detectConversationLanguage } from './lib/language';
 import { getStrings } from './lib/i18n';
 import { Theme, applyTheme, getTheme } from './lib/theme';
+import {
+  SavedChat,
+  listChats,
+  saveChat,
+  deleteChat,
+  clearChats,
+  newChatId,
+  chatTitle,
+} from './lib/chatHistory';
+import { ChatHistoryPanel } from './components/ChatHistoryPanel';
 
 import { Header } from './components/Header';
 import { PhaseTracker } from './components/PhaseTracker';
@@ -77,6 +87,15 @@ export default function App() {
   const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
   const [isKpmRefOpen, setIsKpmRefOpen] = useState(false);
 
+  // Chat history (saved on this device)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [chats, setChats] = useState<SavedChat[]>([]);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const activeChatIdRef = useRef<string | null>(null);
+  const chatCreatedAtRef = useRef<number | null>(null);
+  // The messages that are already stored, so opening an old chat does not "update" it
+  const savedMessagesRef = useRef<Message[] | null>(null);
+
   // Offline (WASM) model state
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   // Shown in the header badge; the answer layout is the same online and offline
@@ -108,6 +127,33 @@ export default function App() {
       window.removeEventListener('offline', goOffline);
     };
   }, []);
+
+  // Load the saved chats once
+  useEffect(() => {
+    listChats().then(setChats);
+  }, []);
+
+  // Save the current chat whenever a question or an answer is added
+  useEffect(() => {
+    if (messages.length === 0 || isLoading || messages === savedMessagesRef.current) return;
+    savedMessagesRef.current = messages;
+    if (!activeChatIdRef.current) {
+      activeChatIdRef.current = newChatId();
+      chatCreatedAtRef.current = Date.now();
+      setActiveChatId(activeChatIdRef.current);
+    }
+    saveChat({
+      id: activeChatIdRef.current,
+      title: chatTitle(messages),
+      createdAt: chatCreatedAtRef.current ?? Date.now(),
+      updatedAt: Date.now(),
+      messages,
+      currentPhase,
+      subject: selectedSubject,
+      level: curriculumLevel,
+    }).then(() => listChats().then(setChats));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, isLoading]);
 
   // Show the on-device answer as it is being written
   useEffect(() => subscribeOfflineStream(setStreamText), []);
@@ -372,12 +418,45 @@ export default function App() {
 
   // Reset conversation
   const handleResetChat = () => {
+    if (isLoading) return;
+    activeChatIdRef.current = null;
+    chatCreatedAtRef.current = null;
+    savedMessagesRef.current = null;
+    setActiveChatId(null);
     setMessages([]);
     setCurrentPhase(1);
     setInputText('');
     setAttachedImage(null);
     setCurriculumLevel('auto');
     setSelectedSubject('Umum');
+  };
+
+  // Open a saved chat
+  const handleOpenChat = (chat: SavedChat) => {
+    if (isLoading) return;
+    activeChatIdRef.current = chat.id;
+    chatCreatedAtRef.current = chat.createdAt;
+    savedMessagesRef.current = chat.messages;
+    setActiveChatId(chat.id);
+    setMessages(chat.messages);
+    setCurrentPhase(chat.currentPhase);
+    setSelectedSubject(chat.subject || 'Umum');
+    setCurriculumLevel((chat.level as CurriculumLevel) || 'auto');
+    setInputText('');
+    setAttachedImage(null);
+    setIsHistoryOpen(false);
+  };
+
+  const handleDeleteChat = async (id: string) => {
+    await deleteChat(id);
+    if (id === activeChatIdRef.current) handleResetChat();
+    setChats(await listChats());
+  };
+
+  const handleClearHistory = async () => {
+    await clearChats();
+    handleResetChat();
+    setChats([]);
   };
 
   // Copy formula from message into scratchpad
@@ -396,6 +475,10 @@ export default function App() {
         onThemeChange={(next) => {
           setTheme(next);
           applyTheme(next);
+        }}
+        onOpenHistory={() => {
+          listChats().then(setChats);
+          setIsHistoryOpen(true);
         }}
         onOpenSampleQuestions={() => setIsSampleModalOpen(true)}
       />
@@ -441,6 +524,44 @@ export default function App() {
                   </button>
                 )}
               </div>
+
+              {/* Recent chats (full list: "Riwayat" button in the header) */}
+              {chats.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Sembang terdahulu
+                    </span>
+                    <button
+                      onClick={() => setIsHistoryOpen(true)}
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                    >
+                      <span>Lihat semua ({chats.length})</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {chats.slice(0, 3).map((chat) => (
+                      <button
+                        key={chat.id}
+                        onClick={() => handleOpenChat(chat)}
+                        className="w-full text-left px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-400 transition-colors"
+                      >
+                        <span className="block text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
+                          {chat.title}
+                        </span>
+                        <span className="block text-[11px] text-slate-400 mt-0.5">
+                          {new Date(chat.updatedAt).toLocaleDateString([], {
+                            day: 'numeric',
+                            month: 'short',
+                          })}{' '}
+                          · {chat.messages.filter((m) => m.role === 'user').length} mesej
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Sample Questions Quick Selector */}
               <div>
@@ -618,7 +739,8 @@ export default function App() {
             {messages.length > 0 && (
               <button
                 onClick={handleResetChat}
-                className="flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-red-500 transition-colors"
+                disabled={isLoading}
+                className="flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-red-500 disabled:opacity-40 transition-colors"
                 title="Mula soalan baharu"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -731,6 +853,21 @@ export default function App() {
         isOpen={isSampleModalOpen}
         onClose={() => setIsSampleModalOpen(false)}
         onSelectQuestion={handleSelectSample}
+      />
+
+      <ChatHistoryPanel
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        chats={chats}
+        activeChatId={activeChatId}
+        busy={isLoading}
+        onSelect={handleOpenChat}
+        onDelete={handleDeleteChat}
+        onClearAll={handleClearHistory}
+        onNewChat={() => {
+          handleResetChat();
+          setIsHistoryOpen(false);
+        }}
       />
 
       <KpmReferenceModal
