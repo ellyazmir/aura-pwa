@@ -2,6 +2,8 @@
 
 ## Deployment
 
+🔗 **Live demo:** [Link Demo](https://aura-pwa-1lus.onrender.com/)
+
 ## About
 A Malaysian KPM study helper for KSSR and KSSM students. Instead of handing over the answer, Aura Tutor guides you step by step, the way a patient teacher (cikgu) would, following the KSSR, UASA and SPM marking formats.
 
@@ -57,9 +59,14 @@ The download button only appears when you are online and the model is not alread
 
 ### 2. Use it offline
 
-- When your device loses internet, the header badge switches to **Luar Talian · Dalam Peranti** on its own.
-- Just type your question and press **Tanya Cikgu**, the same as online. The answer is generated on your device, in the same 3-phase layout with hints, options and a full scheme.
-- Every offline answer carries a small note reminding you it was made by the on-device model and may be less accurate.
+> ⚠️ **Please note:** The offline model is much smaller than the cloud AI, so its accuracy is **not as good as online mode**. Use it as a study aid and check important answers with your teacher or textbook.
+>
+> 📱 **Device support:** Offline mode is mainly designed for **Android users**, who can install the app and use it without internet.
+
+1. **Download the model first.** Complete step 1 while you are online. The model cannot be downloaded once you are offline.
+2. **Go offline.** When your device loses internet, the header badge switches to **Luar Talian · Dalam Peranti** automatically.
+3. **Ask as usual.** Type your question and press **Tanya Cikgu**, the same as online. The answer is generated on your device, in the same 3-phase layout with hints, options and a full scheme.
+4. **Check the note.** Every offline answer carries a small reminder that it was made by the on-device model and may be less accurate.
 
 ### What works offline and what does not
 
