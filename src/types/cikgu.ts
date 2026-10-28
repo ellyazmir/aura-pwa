@@ -37,6 +37,8 @@ export interface CikguAIResponse {
   kehendakSoalan: string;
   explanation: string;
   hint: HintData;
+  /** 2-3 short choices for the student's next step (Phase 1 and 2 only). */
+  hintOptions?: string[];
   formulaTemplate?: string;
   kbatPrompt?: string;
   nextActionPrompt: string;
@@ -93,6 +95,8 @@ export interface Message {
   timestamp: Date;
   image?: AttachedImage;
   cikguData?: CikguResult;
+  /** Language the answer was written in (drives the fixed labels around it). */
+  language?: 'bm' | 'en';
   phaseAtTime?: number;
   modeAtTime?: OperationalMode;
 }
@@ -102,8 +106,10 @@ export interface SampleQuestion {
   level: 'kssr' | 'kssm_lower' | 'kssm_upper';
   levelName: string;
   subject: string;
-  topic: string;
-  question: string;
+  topic: string; // Bahasa Melayu
+  topicEn: string; // English
+  question: string; // Bahasa Melayu
+  questionEn: string; // English
   difficulty: 'Asas' | 'Sederhana' | 'KBAT Tinggi';
 }
 

@@ -168,16 +168,19 @@ function parseJsonReply(raw: string): any {
   }
 }
 
-/** The UI shows plain text, so convert any LaTeX the model writes into plain Unicode. */
+/**
+ * The UI shows plain text, so convert any LaTeX the model writes into plain Unicode.
+ * Only touches $...$ when the content really looks like LaTeX, so money like "$5 and $10" is kept.
+ */
 function stripLatex(v: any): any {
   if (typeof v === 'string') {
     return v
-      .replace(/\$\$?([^$]+)\$\$?/g, '$1')
+      .replace(/\$\$?([^$]*\\[a-zA-Z]+[^$]*)\$\$?/g, '$1')
       .replace(/\\times/g, '×')
       .replace(/\\div/g, '÷')
       .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1)/($2)')
       .replace(/\\sqrt\{([^}]*)\}/g, '√($1)')
-      .replace(/\\/g, '');
+      .replace(/\\([a-zA-Z]+)/g, '$1');
   }
   if (Array.isArray(v)) return v.map(stripLatex);
   if (v && typeof v === 'object') {
@@ -198,7 +201,7 @@ async function generateJson(opts: {
   const userText = `${prompt}
 
 OUTPUT FORMAT:
-Respond with ONLY one valid JSON object (no markdown, no code fences, no commentary) that follows exactly this shape. Keys must match exactly; fill every field with real content.
+Respond with ONLY one valid JSON object (no markdown, no code fences, no commentary) that follows exactly this shape. Keys must match exactly; fill every field with real content (use an empty string "" only where the field says it may be empty).
 ${shape}`;
 
   const content: any[] = [];
@@ -238,12 +241,23 @@ ${shape}`;
 }
 
 const CIKGU_SYSTEM_PROMPT = `
-You are "Cikgu AI", an adaptive, patient, and structured educational assistant expert in the Malaysian Ministry of Education (KPM) primary (KSSR) and secondary (KSSM) national curricula.
+You are "Cikgu AI", an adaptive, patient, and structured educational assistant expert in ALL subjects of the Malaysian Ministry of Education (KPM) primary (KSSR) and secondary (KSSM) national curricula: Matematik, Matematik Tambahan, Sains, Fizik, Kimia, Biologi, Bahasa Melayu, English, Sejarah, Geografi, Pendidikan Islam, Pendidikan Moral, Ekonomi, Prinsip Perakaunan, Perniagaan, Sains Komputer, RBT, and any other school subject.
 
 [CONTEXT & INSIGHT]
-Malaysian students ask academic questions across subjects:
+Malaysian students ask academic questions across all subjects:
 - KSSR (Standard 1–6): Uses simplified explanation techniques, visual steps, basic terminology, and follows UASA (Ujian Akhir Sesi Akademik) format.
-- KSSM (Form 1–5): Uses analytical steps, Higher-Order Thinking Skills (KBAT / HOTS), standard terms (e.g., Pemboleh Ubah Bergerak Balas, Justifikasi, Hipotesis), and follows UASA (Form 1–3) & SPM (Form 4–5) marking standards (Kertas 1, Kertas 2, Skema Markah: P1, K1, N1).
+- KSSM (Form 1–5): Uses analytical steps, Higher-Order Thinking Skills (KBAT / HOTS), standard terms (e.g., Pemboleh Ubah Bergerak Balas, Justifikasi, Hipotesis), and follows UASA (Form 1–3) & SPM (Form 4–5) marking standards (Kertas 1, Kertas 2, Skema Markah).
+
+[CURRENT QUESTION RULE - MUST FOLLOW]
+Always respond to the student's LATEST message. If it is a new question (even in a different subject), forget earlier questions and start fresh with it. Only continue earlier hints when the latest message is clearly a reply, attempt or follow-up to the question being discussed. Never mix two questions together.
+
+[SUBJECT ADAPTATION - MUST FOLLOW]
+First decide which type the question is, then adapt your hints and the final solution:
+- CALCULATION (Matematik, Matematik Tambahan, Fizik, Kimia calculations, Prinsip Perakaunan, Ekonomi calculations): formula, working steps, SI units, marks K1 / N1 / P1.
+- SCIENCE CONCEPT (Sains, Biologi, Kimia, Fizik theory): key terms, explanation of the process or cause and effect, description of the diagram, and an answer built from marked points (1 markah per correct isi). Use K1/N1/P1 only if there is a calculation.
+- HUMANITIES (Sejarah, Geografi, Pendidikan Islam, Pendidikan Moral, Ekonomi, Perniagaan): key facts (fakta), elaboration (huraian), examples (contoh), and for KBAT questions a justification or opinion supported with evidence. Structure the answer the way the SPM mark scheme does: Fakta + Huraian, 1 markah each.
+- LANGUAGE (Bahasa Melayu, English): for comprehension, point to the evidence in the text. For essays, give planning hints (isi, structure, grammar / tatabahasa, vocabulary) and a model answer. For grammar, state the rule and then apply it.
+For subjects with no formula: set any formula field ("formulaTemplate", "coreFormula") to an empty string, put the model-answer point of each step in "workingMath", use point-based marks in "marksScheme" (e.g. "Fakta 1m, Huraian 1m"), and leave "siUnit" / "finalAnswerUnit" for the short final answer or empty. Never invent formulas or numbers for a subject that does not use them.
 
 [OPERATIONAL MODES]
 You operate in one of TWO modes:
@@ -251,23 +265,23 @@ You operate in one of TWO modes:
 1. ONLINE MODE (Full Interactive Socratic Scaffolding)
    - Goal: Engage the student in a multi-turn conversation.
    - Behavior: Provide 1 hint at a time (Phase 1 & Phase 2). Prompt the student to submit their next step before revealing more details or final answers.
-   - PHASE 1 (Turn 1): Warm appreciation. Do NOT reveal final numeric values or direct answers. Give HINT 1 (guiding question, concept breakdown, formula template) and ask student to attempt the first step.
+   - PHASE 1 (Turn 1): Warm appreciation. Do NOT reveal final answers. Give HINT 1 (guiding question, concept breakdown, formula or answer template) and ask the student to attempt the first step.
    - PHASE 2 (Middle Turns): Validate partial progress. Provide HINT 2 or HINT 3 (execution or logic steps). Point out errors gently. Prompt KBAT ("Mengapa" / "Bagaimana").
-   - PHASE 3 (Final Turn): Once the student solves it OR requests the final solution ("Show answer" / "Tunjukkan jawapan"): Confirm correctness and render full step-by-step working matching official KSSR / KSSM / SPM marking schemes.
+   - PHASE 3 (Final Turn): Once the student solves it OR requests the final solution ("Show answer" / "Tunjukkan jawapan"): Confirm correctness and render the full answer matching official KSSR / KSSM / SPM marking schemes.
 
 2. OFFLINE MODE (Self-Contained Offline Study Pack)
    - Goal: Support offline/low-connectivity environments where multi-turn interaction isn't guaranteed.
    - Behavior: Provide the complete guided pathway in a SINGLE output.
    - Single-Response Structure:
      1. Warm Acknowledgment & Topic Tag (Subject, Standard/Form, Unit).
-     2. HINT 1: Concept & Core Formula.
+     2. HINT 1: Concept & Core Formula (or key idea).
      3. HINT 2: Intermediate Workings & Scaffolding Steps.
-     4. FINAL SOLUTION: Complete official KSSR/KSSM solution block (Langkah / SI Units / KBAT Justification / SPM Skema Markah [K1, N1, P1]).
+     4. FINAL SOLUTION: Complete official KSSR/KSSM answer block (Langkah / units where relevant / KBAT Justification / Skema Markah).
 
 [MULTIMODAL & IMAGE RECOGNITION]
 If an image is attached:
-- Carefully inspect all visual diagrams, circuit schematics, geometric figures, charts, tables, and handwritten questions.
-- Transcribe or refer to key visual labels (e.g., angle ABC = 45°, resistor R1 = 5Ω, graph gradient).
+- Carefully inspect all visual diagrams, circuit schematics, geometric figures, charts, tables, maps, reading passages and handwritten questions.
+- Transcribe or refer to key visual labels (e.g., angle ABC = 45°, resistor R1 = 5Ω, graph gradient, a map label).
 
 [PERSONALITY & TONE]
 - Encouraging, supportive, structured (clear headers, bullet points, bold key terms).
@@ -275,11 +289,59 @@ If an image is attached:
 - Standard Malaysian KPM textbook vocabulary and notation formats.
 
 [ACCURACY & FORMAT RULES - MUST FOLLOW]
-- Always restate the given values and equations EXACTLY as written in the student's question. Never change, rescale or add coefficients (for example, never turn mn into 2mn). If the question is unclear or the image is hard to read, say what you can read and ask the student to confirm instead of guessing.
-- Before writing any hint, first solve the problem fully and verify the answer in the "privateSolution" field. Every hint, formula and step you write afterwards MUST be consistent with that solution and with the explanation.
+- Always restate the question, given values, quoted text and equations EXACTLY as written by the student. Never change, rescale or add coefficients (for example, never turn mn into 2mn). If the question is unclear or the image is hard to read, say what you can read and ask the student to confirm instead of guessing.
+- Before writing any hint, first work out the complete correct answer and verify it in the "privateSolution" field (for non-calculation subjects, this is your model answer with its key points). Every hint, formula and step you write afterwards MUST be consistent with it and with the explanation.
+- Only state facts, dates, definitions and quotations you are confident about. If you are unsure, say so instead of guessing.
 - NEVER use LaTeX or dollar signs. Write maths in plain text with Unicode: m, n, x², √, ×, ÷, ≤, ≥, π, and fractions like (a)/(b) or a/b.
+- LANGUAGE: obey the "LANGUAGE PREFERENCE" line in the user prompt for every text field. The JSON key names (kehendakSoalan, nextActionPrompt, ...) are fixed identifiers and say nothing about which language to write in.
 - suggestedQuickReplies: exactly 3 short, complete sentences (maximum 8 words each). Never cut a sentence off.
+- ONLINE MODE hint format: "hint.hintBody" must be exactly ONE short sentence (maximum 25 words) that nudges the student toward the next step without giving the answer.
+- ONLINE MODE "hintOptions" (Phase 1 and 2 only): exactly 3 short options (maximum 12 words each) for what the student could do or answer next. Exactly ONE option is correct and consistent with "privateSolution"; the other two are common, plausible mistakes. Put the correct one in a random position. Do not prefix options with letters or numbers, and do not mark which one is correct. In Phase 3 use an empty array.
 `;
+
+/** Keep only the first sentence of a hint (does not split on decimals like 3.5). */
+function firstSentence(text: string): string {
+  const t = text.trim().replace(/\s+/g, ' ');
+  const m = t.match(/^.*?[.!?](?=\s+[A-Z0-9"'(]|$)/);
+  return (m ? m[0] : t).trim();
+}
+
+/** Clean the model's hintOptions: strings only, no "A)" prefixes, no duplicates, max 3. */
+function cleanHintOptions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const text = item.replace(/^\s*(?:[A-Ca-c][.):]|\d+[.)])\s+/, '').trim();
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+    if (out.length === 3) break;
+  }
+  return out.length >= 2 ? out : [];
+}
+
+/** Language rule for the prompt. "auto" (the UI default) = answer in the language the student wrote in. */
+function languageInstruction(language: string): string {
+  if (language === 'en') {
+    return 'ENGLISH. Write EVERY text field in English: phaseTitle, curriculumBadge, subjectBadge, topicUnit, encouragement, kehendakSoalan, explanation, hintTitle, hintBody, hintOptions, kbatPrompt, nextActionPrompt, suggestedQuickReplies and all marking-scheme text. Do not write Bahasa Melayu (official labels such as KBAT, K1/N1/P1 may stay).';
+  }
+  if (language === 'bm') {
+    return 'BAHASA MELAYU. Write EVERY text field in Bahasa Melayu (phaseTitle, encouragement, explanation, hint, hintOptions, nextActionPrompt, suggestedQuickReplies and marking-scheme text). Do not write English except for the English subject content itself.';
+  }
+  if (language === 'bilingual') return 'Bahasa Melayu with key terms also in English (DLP bilingual)';
+  return "AUTO: reply in the same language as the student's latest message (English question = English reply, Bahasa Melayu question = Bahasa Melayu reply). Keep every field, including the hint options, in that language.";
+}
+
+/** Text of the latest user message (the question or reply to answer now). */
+function lastUserText(messages: any[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') return String(messages[i].content ?? '');
+  }
+  return String(messages[messages.length - 1]?.content ?? '');
+}
 
 // Scan & OCR Endpoint
 app.post('/api/cikgu/scan-image', async (req, res) => {
@@ -293,8 +355,8 @@ app.post('/api/cikgu/scan-image', async (req, res) => {
 You are an expert Malaysian KPM exam question scanner and digitizer.
 Please analyze this uploaded photo of a school question, worksheet, or textbook page.
 Extract and transcribe the primary question clearly and accurately.
-1. Transcribe the full question text with clean formatting, copying every number, coefficient, sign and equation EXACTLY as printed. If there are formulas, write them in plain text without LaTeX or dollar signs (e.g. f(x) = 2x² - 4x + k, F = ma). If there is a diagram, describe the crucial givens (e.g. "[Rajah menunjukkan segi tiga bersudut tegak dengan hipotenus 10 cm...]").
-2. Detect the subject: e.g. "Matematik Tambahan", "Matematik", "Fizik", "Kimia", "Biologi", "Sains", "Sejarah", "Bahasa Melayu", or "English".
+1. Transcribe the full question text with clean formatting, copying every number, sign, equation and quoted sentence EXACTLY as printed. If the page includes a reading passage, table, map, source extract or diagram, include its crucial content or describe it (e.g. "[Rajah menunjukkan segi tiga bersudut tegak dengan hipotenus 10 cm...]"). Write formulas in plain text without LaTeX or dollar signs (e.g. f(x) = 2x² - 4x + k, F = ma).
+2. Detect the subject using KPM naming, e.g. "Matematik", "Matematik Tambahan", "Fizik", "Kimia", "Biologi", "Sains", "Sejarah", "Geografi", "Pendidikan Islam", "Ekonomi", "Prinsip Perakaunan", "Bahasa Melayu", "English", or the actual subject name if it is something else.
 3. Detect the educational level: "kssr" (Standard 1–6), "kssm_lower" (Form 1–3 UASA), or "kssm_upper" (Form 4–5 SPM).
 4. Provide a brief 1-sentence summary of what is being tested.
 
@@ -304,8 +366,8 @@ Extract and transcribe the primary question clearly and accurately.
       prompt: scanPrompt,
       image,
       shape: `{
-  "extractedText": "string - the full digitized question text with formulas and diagram descriptions",
-  "detectedSubject": "string - e.g. Matematik Tambahan, Fizik, Sains, Matematik",
+  "extractedText": "string - the full digitized question text with formulas, passages and diagram descriptions",
+  "detectedSubject": "string - e.g. Matematik Tambahan, Fizik, Sejarah, Bahasa Melayu, English",
   "detectedLevel": "string - exactly one of: kssr, kssm_lower, kssm_upper",
   "summary": "string - brief 1-line summary of topic or question intent"
 }`,
@@ -345,21 +407,22 @@ app.post('/api/cikgu/chat', async (req, res) => {
         : null;
 
     if (mode === 'offline') {
-      const userQuestion = messages[messages.length - 1].content;
+      // Always answer the CURRENT question (latest user message)
+      const userQuestion = lastUserText(messages);
       const offlinePrompt = `
-MODE: OFFLINE MODE (Self-Contained Offline Study Pack)
+     MODE: OFFLINE MODE (Self-Contained Offline Study Pack)
 KPM CURRICULUM LEVEL: ${educationLevel}
-SUBJECT: ${subject}
-LANGUAGE PREFERENCE: ${language}
-USER QUESTION: ${userQuestion}
+DEFAULT SUBJECT (from the UI, may be outdated; detect the real subject from the question): ${subject}
+LANGUAGE PREFERENCE: ${languageInstruction(language)}
+USER QUESTION (answer ONLY this, ignore any earlier question): ${userQuestion}
 ${image ? 'NOTE: An image of the question / diagram is attached above. Refer to its visual data, diagram labels, and figures.' : ''}
 
 Please generate a single self-contained study pack in JSON with:
 1. Topic Tag (subject, level e.g. KSSM Tingkatan 4, unit e.g. Bab 2: Daya dan Gerakan, title)
 2. Warm Acknowledgment & Kehendak Soalan
-3. HINT 1: Concept & Core Formula
+3. HINT 1: Concept & Core Formula (or the key idea if the subject has no formula)
 4. HINT 2: Intermediate Workings & Scaffolding Steps (with common mistakes)
-5. FINAL SOLUTION: Complete official KSSR/KSSM solution block with marking scheme code (e.g. SPM Kertas 2 / UASA), steps with [K1/N1/P1] marks, SI units, KBAT justification, and examiner tips.
+5. FINAL SOLUTION: Complete official KSSR/KSSM model answer with marking scheme code (e.g. SPM Kertas 2 / UASA). For calculation subjects use [K1/N1/P1] marks and SI units; for other subjects list the marked points (fakta / huraian / contoh / isi) with their marks. Include KBAT justification and examiner tips.
 `;
 
       const parsed = await generateJson({
@@ -367,11 +430,11 @@ Please generate a single self-contained study pack in JSON with:
         prompt: offlinePrompt,
         image: chatImage,
         shape: `{
-  "privateSolution": "string - FIRST quote the given equations exactly as in the question, then solve the problem fully and verify the answer. Never shown to the student.",
+  "privateSolution": "string - FIRST quote the question exactly as given, then work out the complete answer and verify it. Never shown to the student.",
   "topicTag": { "subject": "string", "level": "string", "unit": "string", "title": "string" },
   "warmAcknowledgment": "string",
   "kehendakSoalan": "string",
-  "hint1": { "title": "string", "concept": "string", "coreFormula": "string", "guide": "string" },
+  "hint1": { "title": "string", "concept": "string", "coreFormula": "string (empty string if the subject has no formula)", "guide": "string" },
   "hint2": {
     "title": "string",
     "intermediateSteps": ["string"],
@@ -381,10 +444,10 @@ Please generate a single self-contained study pack in JSON with:
   "finalSolution": {
     "markingSchemeCode": "string",
     "steps": [
-      { "stepNumber": 1, "stepDescription": "string", "workingMath": "string", "marksScheme": "string e.g. K1, N1, P1" }
+      { "stepNumber": 1, "stepDescription": "string", "workingMath": "string (working, or the model-answer point for non-calculation subjects)", "marksScheme": "string e.g. K1, N1, P1 or Fakta 1m, Huraian 1m" }
     ],
     "finalAnswer": "string",
-    "siUnit": "string",
+    "siUnit": "string (empty string if not applicable)",
     "kbatJustification": "string",
     "examinerTips": "string"
   },
@@ -406,26 +469,38 @@ Please generate a single self-contained study pack in JSON with:
       targetPhase = 2;
     }
 
+    const lastUserMsg = lastUserText(messages);
+    // Only recent turns, so an old topic cannot bleed into a new question
+    const recentMessages = messages.slice(-8);
+
     const conversationPrompt = `
 MODE: ONLINE MODE (Full Interactive Socratic Scaffolding)
 KPM CURRICULUM LEVEL: ${educationLevel}
-SUBJECT: ${subject}
-LANGUAGE PREFERENCE: ${language}
+DEFAULT SUBJECT (from the UI, may be outdated; detect the real subject from the question): ${subject}
+LANGUAGE PREFERENCE: ${languageInstruction(language)}
 USER REQUESTED DIRECT FINAL SOLUTION / PHASE 3: ${requestDirectPhase3 ? 'YES - TRANSITION IMMEDIATELY TO PHASE 3' : 'NO - PROCEED WITH PHASE 1 OR 2'}
-USER SCRATCHPAD ATTEMPT: ${userAttempt || 'None'}
-${image ? 'NOTE: An image of the question / diagram is attached above. Analyze any geometry, diagrams, numbers, or graphs from the image.' : ''}
+USER SCRATCHPAD ATTEMPT (may belong to an older question; ignore it if the latest message is a new question): ${userAttempt || 'None'}
+${image ? 'NOTE: An image is attached above. Use it only if it matches the latest question; otherwise ignore it.' : ''}
 
-CONVERSATION HISTORY:
-${messages
-  .map((m: any) => `[${m.role.toUpperCase()}]: ${m.content}`)
-  .join('\n\n')}
+CONVERSATION HISTORY (oldest to newest):
+${recentMessages.map((m: any) => `[${String(m.role).toUpperCase()}]: ${m.content}`).join('\n\n')}
+
+LATEST STUDENT MESSAGE (respond to THIS):
+"""
+${lastUserMsg}
+"""
+
+QUESTION TRACKING:
+- Decide whether the latest message is (a) a NEW question different from earlier ones, or (b) a reply, attempt or follow-up about the question already being discussed.
+- If NEW: ignore the earlier conversation completely. Treat it as turn 1 of a brand-new question: Phase 1 (unless the student asked for the full solution), with new subject and topic badges. Set "isNewQuestion": true. Do not mention or reuse the previous question or its hints.
+- If follow-up: continue the question being discussed at the phase below. Set "isNewQuestion": false.
+- A message that starts with "Pilihan saya:" or "My choice:" is the option the student picked from your previous "hintOptions". It is a follow-up, never a new question, and the "Pilihan saya:" / "My choice:" label does not change the language: keep replying in the language of the original question. Compare it with your earlier solution: say gently whether it is right or wrong in "explanation" (do not give the final answer unless Phase 3), then give the next one-sentence hint and 3 new options.
 
 INSTRUCTIONS:
-- Current Target Phase: 
-${requestDirectPhase3 ? '3' : targetPhase}.
-- If Phase 1: Acknowledge warmly, identify Kehendak Soalan and give HINT 1. NEVER give the final answer or numeric solution in Phase 1.
-- If Phase 2: Validate student working, provide HINT 2 or 3, include KBAT prompt ("Mengapa / Bagaimana"). Do not reveal final answer yet.
-- If Phase 3: Confirm correctness and render official KSSR / KSSM / SPM marking scheme (with [K1/N1/P1] marks, SI units, and examiner tips).
+- Phase to use when continuing the same question: ${requestDirectPhase3 ? '3' : targetPhase}.
+- If Phase 1: Acknowledge warmly, identify Kehendak Soalan and give HINT 1. NEVER give the final answer in Phase 1.
+- If Phase 2: Validate student working, provide HINT 2 or 3, include KBAT prompt ("Mengapa / Bagaimana"). Do not reveal the final answer yet.
+- If Phase 3: Confirm correctness and render the official KSSR / KSSM / SPM marking scheme (K1/N1/P1 marks and SI units for calculations, point-based marks for other subjects, plus examiner tips).
 `;
 
     const parsed = await generateJson({
@@ -433,7 +508,8 @@ ${requestDirectPhase3 ? '3' : targetPhase}.
       prompt: conversationPrompt,
       image: chatImage,
       shape: `{
-  "privateSolution": "string - FIRST quote the given equations exactly as in the student's question, then solve the problem fully and verify the answer. Never shown to the student; all hints must stay consistent with it.",
+  "privateSolution": "string - FIRST quote the question exactly as in the student's message, then work out the complete answer and verify it. Never shown to the student; all hints must stay consistent with it.",
+  "isNewQuestion": true,
   "phase": 1,
   "phaseTitle": "string",
   "curriculumBadge": "string",
@@ -442,23 +518,39 @@ ${requestDirectPhase3 ? '3' : targetPhase}.
   "encouragement": "string",
   "kehendakSoalan": "string",
   "explanation": "string",
-  "hint": { "hintNumber": 1, "hintTitle": "string", "hintBody": "string" },
-  "formulaTemplate": "string (optional)",
+  "hint": { "hintNumber": 1, "hintTitle": "string", "hintBody": "string - exactly ONE short sentence (max 25 words), no answer" },
+  "hintOptions": ["string", "string", "string"],
+  "formulaTemplate": "string (optional; empty string if the subject has no formula)",
   "kbatPrompt": "string (optional)",
   "nextActionPrompt": "string",
   "suggestedQuickReplies": ["string"],
   "officialSkema": {
     "markingCode": "string",
     "steps": [
-      { "stepNumber": 1, "stepDescription": "string", "workingMath": "string", "marksScheme": "string e.g. K1, N1, P1" }
+      { "stepNumber": 1, "stepDescription": "string", "workingMath": "string (working, or the model-answer point for non-calculation subjects)", "marksScheme": "string e.g. K1, N1, P1 or Fakta 1m, Huraian 1m" }
     ],
     "finalAnswerUnit": "string",
     "kbatSummary": "string",
     "tipsPemeriksa": "string"
   }
 }
-"phase" must be the integer 1, 2 or 3 (1 = Inquiry/Hint 1, 2 = Guided Hinting/KBAT, 3 = Official Full Marking Scheme). "hintNumber" is an integer. Include "officialSkema" ONLY in Phase 3; omit it in Phase 1 and 2.`,
+"isNewQuestion" is a boolean. "phase" must be the integer 1, 2 or 3 (1 = Inquiry/Hint 1, 2 = Guided Hinting/KBAT, 3 = Official Full Marking Scheme). "hintNumber" is an integer. "hintOptions" has exactly 3 options in Phase 1 and 2 (one correct, two plausible mistakes) and is an empty array in Phase 3. Include "officialSkema" ONLY in Phase 3; omit it in Phase 1 and 2.`,
     });
+
+    // Safety net: a brand-new question must start at Phase 1 and never leak the answer
+    if (parsed.isNewQuestion === true && !requestDirectPhase3) {
+      parsed.phase = 1;
+      delete parsed.officialSkema;
+      if (parsed.hint && typeof parsed.hint === 'object') parsed.hint.hintNumber = 1;
+    }
+    delete parsed.isNewQuestion;
+
+    // Hint = one sentence; options only while the student is still working (Phase 1 and 2)
+    if (parsed.hint && typeof parsed.hint.hintBody === 'string') {
+      parsed.hint.hintBody = firstSentence(parsed.hint.hintBody);
+    }
+    parsed.hintOptions = parsed.phase === 3 ? [] : cleanHintOptions(parsed.hintOptions);
+
     parsed.mode = 'online';
     return res.json({ success: true, data: parsed });
   } catch (error: any) {
