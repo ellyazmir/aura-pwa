@@ -12,7 +12,7 @@ by photo. The app guides them with a 3-phase Socratic method:
   Phase 2 - Check student's working + Hint 2/3 + KBAT question
   Phase 3 - Full official marking scheme (K1 / N1 / P1, SI units, examiner tips)
 It also has an "Offline Study Pack" mode (all hints + full solution in one reply).
-When there is no internet, a small Qwen2.5 model runs inside the browser
+When there is no internet, a small Qwen3-0.6B model runs inside the browser
 (WebAssembly) as a fallback.
 
 2. SYSTEM REQUIREMENTS
@@ -23,10 +23,9 @@ When there is no internet, a small Qwen2.5 model runs inside the browser
   and the one-time download of the offline model
 - Modern browser with WebAssembly support (Chrome, Edge, Firefox, Safari)
   - Cross-origin isolation (set by server.ts) enables multi-threaded offline AI
-  - Offline model needs about 400 MB (0.5B) or 1.1 GB (1.5B) of browser storage
-  - 0.5B is the default. 1.5B is chosen only on a desktop-class device:
-    crossOriginIsolated, >= 8 GB RAM, >= 12 CPU threads, not a phone/tablet
-  - To force one: localStorage.setItem('cikgu.offlineModel', 'small' or 'medium')
+  - Offline model (Qwen3-0.6B, Q8_0) needs about 610 MB of browser storage
+  - It is stored in the browser Cache API; the app checks the cache and never asks
+    to download it a second time
 
 3. EXTERNAL SERVICES / ACCOUNTS
 ------------------------------------------------------------------------------
@@ -59,8 +58,8 @@ GGUF model files in the browser. No token is needed for that.
   @tailwindcss/vite     ^4.3.3     Tailwind CSS v4 Vite plugin
   express               ^4.21.2    API server + static hosting in production
   dotenv                ^17.2.3    Loads .env
-  @wllama/wllama        ^1.17.0    On-device AI (llama.cpp in WebAssembly)
-                                   Keep on 1.x: API differs from 2.x
+  @wllama/wllama        ^3.8.1     On-device AI (llama.cpp in WebAssembly)
+                                   3.x is needed for Qwen3; the API differs from 1.x
   lucide-react          ^0.546.0   Icons
   motion                ^12.23.24  Animations
   canvas-confetti       ^1.9.4     Celebration effect at Phase 3
@@ -86,13 +85,10 @@ If "npm start" fails with "cross-env is not recognized", install it:
 
 7. REQUIRED STATIC FILES
 ------------------------------------------------------------------------------
-The offline AI engine needs these 5 files in public/wllama/ (already present).
-If missing, copy them from node_modules/@wllama/wllama/esm/:
-  public/wllama/single-thread/wllama.js
-  public/wllama/single-thread/wllama.wasm
-  public/wllama/multi-thread/wllama.js
-  public/wllama/multi-thread/wllama.wasm
-  public/wllama/multi-thread/wllama.worker.mjs
+The offline AI engine needs ONE file in public/wllama/ (already present).
+If missing, copy it from node_modules/@wllama/wllama/esm/wasm/:
+  public/wllama/wllama.wasm
+(The old single-thread/ and multi-thread/ folders belong to wllama 1.x and are not used.)
 
 Optional later: add 192x192 and 512x512 PNG icons to the PWA manifest in
 vite.config.ts (icons is empty now, so the app is not yet installable).
@@ -130,7 +126,7 @@ vite.config.ts (icons is empty now, so the app is not yet installable).
  F7  Scratchpad ("Buku Latihan") to write a step and submit it as an attempt.
  F8  KPM formula/KBAT keyword reference (Rumus KPM) and sample question list.
  F9  Offline fallback: if no internet or the server fails (5xx / 60 s
-     timeout), answer with the on-device Qwen2.5 model. The student must
+     timeout), answer with the on-device Qwen3-0.6B model. The student must
      download the model once while online ("Muat turun model luar talian").
  F10 Installable/cacheable PWA (service worker, autoUpdate) that caches the
      app and wllama files (cache limit 40 MB per file).

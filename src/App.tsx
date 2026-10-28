@@ -31,6 +31,7 @@ import {
   fetchWithOfflineFallback,
   preloadOfflineModel,
   isOfflineModelReady,
+  syncOfflineModelStatus,
   subscribeOfflineStream,
   hasInternet,
 } from './lib/offlineFallback';
@@ -102,6 +103,8 @@ export default function App() {
   const mode: OperationalMode = isOnline ? 'online' : 'offline';
   const [offlineReady, setOfflineReady] = useState(isOfflineModelReady());
   const [modelProgress, setModelProgress] = useState<number | null>(null);
+  // Becomes true once the browser cache has been checked for the model
+  const [modelChecked, setModelChecked] = useState(false);
   const [streamText, setStreamText] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -166,6 +169,14 @@ export default function App() {
     }
   }, [isOnline]);
 
+  // Look in the browser cache for the model; if it is there, never offer the download again
+  useEffect(() => {
+    syncOfflineModelStatus().then((cached) => {
+      setOfflineReady(cached);
+      setModelChecked(true);
+    });
+  }, []);
+
   // When the connection drops, warm up the local model so the first answer is faster
   useEffect(() => {
     if (!isOnline && offlineReady) {
@@ -174,6 +185,11 @@ export default function App() {
   }, [isOnline, offlineReady]);
 
   const handleDownloadOfflineModel = async () => {
+    // Already in the cache (e.g. the page state was stale): just mark it ready, no new download
+    if (await syncOfflineModelStatus()) {
+      setOfflineReady(true);
+      return;
+    }
     setModelProgress(0);
     try {
       await preloadOfflineModel(setModelProgress);
@@ -709,7 +725,7 @@ export default function App() {
               </button>
 
               {/* Offline model download (only while online and not yet downloaded) */}
-              {isOnline && !offlineReady && (
+              {isOnline && modelChecked && !offlineReady && (
                 <button
                   onClick={handleDownloadOfflineModel}
                   disabled={modelProgress !== null}
