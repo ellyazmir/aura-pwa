@@ -30,8 +30,8 @@ app.use((_req, res, next) => {
 // "Input model (or splits) must be non-empty Blob or File").
 // Only these two fixed files can be fetched, so this is not an open proxy.
 const OFFLINE_MODEL_URLS: Record<string, string> = {
-  small:
-    'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf',
+   small:
+    'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf',
   medium:
     'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
 };
@@ -452,34 +452,47 @@ app.post('/api/cikgu/chat', async (req, res) => {
         : null;
 
     if (mode === 'offline') {
-      // Always answer the CURRENT question (latest user message)
-      const userQuestion = lastUserText(messages);
-      const offlinePrompt = `
-     MODE: OFFLINE MODE (Self-Contained Offline Study Pack)
+  // Always answer the CURRENT question (latest user message)
+  const userQuestion = lastUserText(messages);
+  const offlinePrompt = `
+MODE: OFFLINE MODE (Self-Contained Offline Study Pack)
 KPM CURRICULUM LEVEL: ${educationLevel}
 DEFAULT SUBJECT (from the UI, may be outdated; detect the real subject from the question): ${subject}
 LANGUAGE PREFERENCE: ${languageInstruction(language)}
 USER QUESTION (answer ONLY this, ignore any earlier question): ${userQuestion}
 ${image ? 'NOTE: An image of the question / diagram is attached above. Refer to its visual data, diagram labels, and figures.' : ''}
-
-Please generate a single self-contained study pack in JSON with:
-1. Topic Tag (subject, level e.g. KSSM Tingkatan 4, unit e.g. Bab 2: Daya dan Gerakan, title)
+ 
+FIRST decide "questionType":
+- "math"  = the question is Matematik or Matematik Tambahan (any level, KSSR or KSSM).
+- "other" = every other subject (Sains, Fizik, Kimia, Biologi, Bahasa Melayu, English, Sejarah, Geografi, Pendidikan Islam, Ekonomi, Perakaunan, etc.), even if it has a small calculation.
+ 
+IF questionType = "math", generate the study pack with these parts:
+1. Topic Tag (subject, level e.g. KSSM Tingkatan 4, unit e.g. Bab 2, title)
 2. Warm Acknowledgment & Kehendak Soalan
-3. HINT 1: Concept & Core Formula (or the key idea if the subject has no formula)
+3. HINT 1: Concept & Core Formula
 4. HINT 2: Intermediate Workings & Scaffolding Steps (with common mistakes)
-5. FINAL SOLUTION: Complete official KSSR/KSSM model answer with marking scheme code (e.g. SPM Kertas 2 / UASA). For calculation subjects use [K1/N1/P1] marks and SI units; for other subjects list the marked points (fakta / huraian / contoh / isi) with their marks. Include KBAT justification and examiner tips.
+5. FINAL SOLUTION: complete official KSSR/KSSM model answer with marking scheme code, [K1/N1/P1] marks, SI units, KBAT justification and examiner tips.
+Fill "topicTag", "warmAcknowledgment", "kehendakSoalan", "hint1", "hint2", "finalSolution". Do NOT include "concepts" or "suggestedAnswer".
+ 
+IF questionType = "other", generate the study pack like this:
+1. Topic Tag and Warm Acknowledgment & Kehendak Soalan.
+2. "concepts": the key concepts the student needs, explained ONE BY ONE (3 to 6 items, in a logical order, each building on the previous). Each item has a short title, a clear explanation in simple KPM textbook language, and one example or memory tip. Do not give the final answer inside the concepts.
+3. "suggestedAnswer": at the END, a suggested model answer built from the concepts above, written the way the SPM / UASA mark scheme expects (marked points: fakta / huraian / contoh / isi, 1 markah each; for essays or comprehension give a short model answer; for grammar give the rule applied). Add a short examiner tip.
+Fill "topicTag", "warmAcknowledgment", "kehendakSoalan", "concepts", "suggestedAnswer". Do NOT include "hint1", "hint2" or "finalSolution".
 `;
-
-      const parsed = await generateJson({
-        system: CIKGU_SYSTEM_PROMPT,
-        prompt: offlinePrompt,
-        image: chatImage,
-        shape: `{
+ 
+  const parsed = await generateJson({
+    system: CIKGU_SYSTEM_PROMPT,
+    prompt: offlinePrompt,
+    image: chatImage,
+    shape: `{
   "privateSolution": "string - FIRST quote the question exactly as given, then work out the complete answer and verify it. Never shown to the student.",
+  "questionType": "string - exactly one of: math, other",
   "topicTag": { "subject": "string", "level": "string", "unit": "string", "title": "string" },
   "warmAcknowledgment": "string",
   "kehendakSoalan": "string",
-  "hint1": { "title": "string", "concept": "string", "coreFormula": "string (empty string if the subject has no formula)", "guide": "string" },
+ 
+  "hint1": { "title": "string", "concept": "string", "coreFormula": "string (empty string if none)", "guide": "string" },
   "hint2": {
     "title": "string",
     "intermediateSteps": ["string"],
@@ -489,19 +502,44 @@ Please generate a single self-contained study pack in JSON with:
   "finalSolution": {
     "markingSchemeCode": "string",
     "steps": [
-      { "stepNumber": 1, "stepDescription": "string", "workingMath": "string (working, or the model-answer point for non-calculation subjects)", "marksScheme": "string e.g. K1, N1, P1 or Fakta 1m, Huraian 1m" }
+      { "stepNumber": 1, "stepDescription": "string", "workingMath": "string", "marksScheme": "string e.g. K1, N1, P1" }
     ],
     "finalAnswer": "string",
     "siUnit": "string (empty string if not applicable)",
     "kbatJustification": "string",
     "examinerTips": "string"
   },
+ 
+  "concepts": [
+    { "conceptNumber": 1, "title": "string", "explanation": "string", "example": "string" }
+  ],
+  "suggestedAnswer": {
+    "markingSchemeCode": "string e.g. SPM Kertas 2 / UASA",
+    "answer": "string - the full suggested model answer",
+    "points": [ { "point": "string", "marksScheme": "string e.g. Fakta 1m, Huraian 1m" } ],
+    "examinerTips": "string"
+  },
+ 
   "suggestedQuickReplies": ["string"]
-}`,
-      });
-      parsed.mode = 'offline';
-      return res.json({ success: true, data: parsed });
-    }
+}
+Include hint1, hint2 and finalSolution ONLY when questionType is "math". Include concepts and suggestedAnswer ONLY when questionType is "other". Omit the other group completely.`,
+  });
+ 
+  // Keep the response clean: drop the group that does not match the question type
+  const isMath = String(parsed.questionType).toLowerCase() === 'math';
+  parsed.questionType = isMath ? 'math' : 'other';
+  if (isMath) {
+    delete parsed.concepts;
+    delete parsed.suggestedAnswer;
+  } else {
+    delete parsed.hint1;
+    delete parsed.hint2;
+    delete parsed.finalSolution;
+    if (!Array.isArray(parsed.concepts)) parsed.concepts = [];
+  }
+  parsed.mode = 'offline';
+  return res.json({ success: true, data: parsed });
+}
 
     // ONLINE MODE
     const userMessageCount = messages.filter((m: any) => m.role === 'user').length;
