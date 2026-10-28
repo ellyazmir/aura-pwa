@@ -19,7 +19,7 @@ It is a Progressive Web App built with React, TypeScript and Vite, with a small 
 - **All subjects.** Mathematics, Additional Mathematics, Science, Physics, Chemistry, Biology, History, Geography, Bahasa Melayu, English and more. It adapts the answer style to the subject (calculation steps, science explanations, or humanities facts and elaboration).
 - **Answers in your language.** Ask in English and it replies in English; ask in Bahasa Melayu and it replies in Malay. It detects this from your question.
 - **Photo scanner.** Snap or upload a photo of a question from a textbook or worksheet. The app reads the text, detects the subject and level, and fills it in for you. (Scanning needs internet.)
-- **Offline mode.** With no internet, a small on-device model (Qwen3-0.6B) answers in the same layout. Simple equations are solved exactly by the app itself, without the model.
+- **Offline mode.** With no internet, a small on-device model (Qwen2.5-0.5B) answers in the same layout. Simple equations are solved exactly by the app itself, without the model.
 - **Chat history.** Every question and answer is saved on your device so you can reopen past sessions. Nothing is sent to a server.
 - **Question bank.** A set of sample SPM, UASA and KSSR questions, each with a Bahasa Melayu and an English version.
 - **Scratchpad, formula reference, blue/purple theme, and installable as a PWA.**
