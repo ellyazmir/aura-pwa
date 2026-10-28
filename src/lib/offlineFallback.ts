@@ -48,13 +48,10 @@ const READY_FLAG = 'cikgu.offlineModelReady2';
 // The model file is stored in the browser Cache API under the model URL (works offline).
 const CACHE_NAME = 'cikgu-offline-model';
 
+// Always the 0.5B model (small, fast, works on phones). To allow the 1.5B model again, return
+// MODELS.medium here, or read localStorage 'cikgu.offlineModel' as before.
 function pickModel() {
-  const forced = localStorage.getItem('cikgu.offlineModel'); // 'small' | 'medium'
-  if (forced === 'small' || forced === 'medium') return MODELS[forced];
-  const mem = (navigator as any).deviceMemory ?? 4;
-  const cores = navigator.hardwareConcurrency ?? 4;
-  // The 1.5B model is only worth its size when multi-threading is available (see server.ts headers).
-  return crossOriginIsolated && mem >= 8 && cores >= 8 ? MODELS.medium : MODELS.small;
+  return MODELS.small;
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +216,52 @@ x + a = b, so x = b - a
 ### KBAT
 Why must we do the same operation on both sides of the equation?`;
 
+// Used for questions that are NOT calculations. A small model copies its example, so the example
+// must match the kind of question (a maths example for a History question gives nonsense).
+const EXAMPLE_TEXT_BM = `### TAJUK
+Fotosintesis
+### SUBJEK
+Sains
+### KEHENDAK
+Jelaskan dua faktor yang diperlukan oleh tumbuhan untuk membuat makanan.
+### PENJELASAN
+Soalan ini meminta anda menyatakan faktor dan menerangkan peranan setiap satu.
+### PETUNJUK
+Apakah sumber tenaga yang digunakan oleh tumbuhan hijau untuk membuat makanan?
+### PILIHAN
+A. Cahaya matahari
+B. Tanah yang subur
+C. Angin yang kuat
+### RUMUS
+### KBAT
+Mengapa tumbuhan yang tidak mendapat cahaya menjadi pucat?`;
+
+const EXAMPLE_TEXT_EN = `### TAJUK
+Photosynthesis
+### SUBJEK
+Science
+### KEHENDAK
+Explain two factors that plants need to make food.
+### PENJELASAN
+This question asks you to state the factors and explain the role of each one.
+### PETUNJUK
+What source of energy do green plants use to make food?
+### PILIHAN
+A. Sunlight
+B. Fertile soil
+C. Strong wind
+### RUMUS
+### KBAT
+Why do plants kept in the dark turn pale?`;
+
+/** True when the question looks like a calculation (digits with an operator/equation, or maths words). */
+function looksLikeMaths(q: string): boolean {
+  return (
+    /\d\s*[+\-*/=×÷^]\s*[\da-z(]|[a-z]\s*[+\-*/=]\s*\d|[=]/i.test(q) ||
+    /\b(hitung|cari nilai|selesaikan|persamaan|ungkapan|pecahan|peratus|luas|isi padu|calculate|solve|equation|fraction|percentage|area|volume|gradient)\b/i.test(q)
+  );
+}
+
 const COMMON_RULES = `- Answer only the question under "Question:". Ignore anything else.
 - Copy numbers, equations and quoted text from the question EXACTLY. Never change them.
 - Plain text only. No LaTeX, no dollar signs. Use symbols like x², √, ×, ÷.
@@ -227,7 +270,7 @@ const COMMON_RULES = `- Answer only the question under "Question:". Ignore anyth
 - Keep the English headers exactly as shown, each on its own line.`;
 
 /** Phase 1 and 2: one small hint at a time, three options to pick from, never the final answer. */
-function buildHintSystem(language: Lang): string {
+function buildHintSystem(language: Lang, mathy: boolean): string {
   return `You are Aura Tutor, a patient Malaysian KPM (KSSR/KSSM) tutor for ALL school subjects. ${languageLine(language)}
 You guide the student with ONE small hint at a time and NEVER give the final answer.
 Rules:
@@ -237,7 +280,8 @@ ${COMMON_RULES}
 - If the student replied or picked an option, begin PENJELASAN by saying gently whether it is right or wrong, then continue.
 - If the subject has no formula (e.g. Sejarah, Bahasa), leave RUMUS empty.
 Output exactly these headers. Example:
-${language === 'en' ? EXAMPLE_EN : EXAMPLE_BM}`;
+${mathy ? (language === 'en' ? EXAMPLE_EN : EXAMPLE_BM) : (language === 'en' ? EXAMPLE_TEXT_EN : EXAMPLE_TEXT_BM)}
+The example only shows the FORMAT. Its topic is unrelated: NEVER copy its content. Write about the student's question only.`;
 }
 
 /** Phase 3: the complete worked answer in marking-scheme format. */
@@ -520,28 +564,41 @@ async function generateOffline(body: any): Promise<any> {
     (isFollowUp ? `\n\nStudent's latest reply:\n${lastUser.slice(0, 300)}` : '');
 
   const instance = await preloadOfflineModel();
-  const raw: string = await instance.createCompletion(
-    chatML(
-      phase === 3 ? buildSolutionSystem(language) : buildHintSystem(language),
-      userPrompt,
-      PREFILL
-    ),
-    {
-      nPredict: phase === 3 ? 450 : 300,
-      // penalty_repeat stops the small model from looping on the same line
-      sampling: { temp: 0.2, top_k: 40, top_p: 0.9, penalty_repeat: 1.15, penalty_last_n: 128 },
-      // No live streaming: the student only sees the finished, parsed answer, not raw model text.
-    } as any
-  );
-  const out = (PREFILL + raw).replace(/<\|im_(start|end)\|>/g, '').trim();
+  const mathy = looksLikeMaths(question);
+  const run = async (prompt: string): Promise<string> => {
+    const raw: string = await instance.createCompletion(
+      chatML(phase === 3 ? buildSolutionSystem(language) : buildHintSystem(language, mathy), prompt, PREFILL),
+      {
+        nPredict: phase === 3 ? 450 : 300,
+        // penalty_repeat stops the small model from looping on the same line
+        sampling: { temp: 0.2, top_k: 40, top_p: 0.9, penalty_repeat: 1.15, penalty_last_n: 128 },
+        // No live streaming: the student only sees the finished, parsed answer, not raw model text.
+      } as any
+    );
+    return (PREFILL + raw).replace(/<\|im_(start|end)\|>/g, '').trim();
+  };
+  let out = await run(userPrompt);
+  // Guard: a non-maths question must never get an equation answer (the model copied the example).
+  const leakedMaths = (o: string) =>
+    !mathy && /\bx\s*[+\-]\s*\d|persamaan linear|linear equation|kedua-dua belah|both sides/i.test(o);
+  if (leakedMaths(out)) {
+    console.warn('[offline] answer copied the maths example, retrying');
+    out = await run(
+      userPrompt +
+        '\n\nIMPORTANT: this is NOT a maths question. Do not mention equations, x or both sides. Write only about the topic of the question above.'
+    );
+  }
   console.info('[offline] raw model output:\n' + out);
 
   // Show the student's own question instead of the small model's paraphrase:
   // a small model sometimes rewrites the question wrongly.
   const kehendak = question.length > 300 ? question.slice(0, 300) + '...' : question;
   const topic = section(out, 'TAJUK').split('\n')[0].trim();
+  // The UI's default subject (e.g. "Matematik") is often wrong, so for a non-maths question
+  // prefer the subject the model detected.
+  const modelSubject = section(out, 'SUBJEK').split('\n')[0].trim().slice(0, 30);
   const subjectBadge =
-    subject && subject !== 'Umum' ? subject : section(out, 'SUBJEK').split('\n')[0].trim().slice(0, 30);
+    subject && subject !== 'Umum' && (mathy || !modelSubject) ? subject : modelSubject || subject;
 
   const base = {
     mode: 'online' as const,
@@ -618,15 +675,22 @@ function jsonResponse(payload: unknown, status = 200): Response {
 export async function hasInternet(): Promise<boolean> {
   if (!navigator.onLine) return false;
   try {
-    // Two public connectivity endpoints that answer 204/200 without an API key (so no 401 in the
-    // console). The internet counts as available when either one answers.
-    const ping = (url: string) =>
-      fetch(url, { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(3000) });
-    await Promise.any([
-      ping('https://www.gstatic.com/generate_204'),
-      ping('https://cloudflare.com/cdn-cgi/trace'),
-    ]);
-    return true;
+    // One public endpoint first. Only if it fails, try this site's own server (so a network that
+    // blocks gstatic does not count as "offline", and there is at most one console error).
+    const ping = (url: string, noCors: boolean) =>
+      fetch(url, {
+        method: noCors ? 'GET' : 'HEAD',
+        ...(noCors ? { mode: 'no-cors' as const } : {}),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(3000),
+      });
+    try {
+      await ping('https://www.gstatic.com/generate_204', true);
+      return true;
+    } catch {
+      await ping(`${location.origin}/`, false);
+      return true;
+    }
   } catch {
     return false;
   }
