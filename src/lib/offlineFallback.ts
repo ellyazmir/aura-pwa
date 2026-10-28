@@ -43,10 +43,10 @@ const MODELS = {
   },
 };
 
-const READY_FLAG = 'cikgu.offlineModelReady';
-// Which URL the model was really downloaded from (Hugging Face or this server). wllama caches
-// the file under that URL, so loading it again later (also offline) must use the same one.
-const SOURCE_FLAG = 'cikgu.offlineModelSource';
+// New key: older downloads were cached by wllama's own downloader, which this version no longer uses.
+const READY_FLAG = 'cikgu.offlineModelReady2';
+// The model file is stored in the browser Cache API under the model URL (works offline).
+const CACHE_NAME = 'cikgu-offline-model';
 
 function pickModel() {
   const forced = localStorage.getItem('cikgu.offlineModel'); // 'small' | 'medium'
@@ -70,20 +70,46 @@ export function isOfflineModelReady(): boolean {
 }
 
 /**
- * wllama takes the file size from the Content-Length of a HEAD request. When the host answers with
- * an error (HTTP 403/429/5xx, a proxy page) or without Content-Length, the size is 0 and wllama fails
- * with the unclear "Input model (or splits) must be non-empty Blob or File". Check it first, so the
- * next source can be tried and the real reason is shown.
+ * Get the model file as a Blob: from the browser cache if it is there (works with no internet),
+ * otherwise a plain streamed GET download that is then cached.
+ *
+ * wllama's own downloader needs a HEAD request with Content-Length. Hugging Face's CDN does not
+ * expose it to browsers, and Render serves big files chunked, hence "the host did not report the
+ * file size". A normal GET does not need it; the size is only used for the progress bar.
  */
-async function checkSource(url: string): Promise<void> {
-  let res: Response;
-  try {
-    res = await fetch(url, { method: 'HEAD' });
-  } catch {
-    return; // no network at all: wllama will try its offline cache
+async function getModelBlob(
+  cacheKey: string,
+  sourceUrl: string,
+  approxBytes: number,
+  onProgress?: (percent: number) => void
+): Promise<Blob> {
+  const cache = await caches.open(CACHE_NAME);
+  const hit = await cache.match(cacheKey);
+  if (hit) return hit.blob();
+
+  const res = await fetch(sourceUrl);
+  if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+  const total = Number(res.headers.get('content-length')) || approxBytes;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    onProgress?.(Math.min(99, Math.round((loaded / total) * 100)));
   }
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  if (!Number(res.headers.get('content-length'))) throw new Error('the host did not report the file size');
+  // A cut-off download or an HTML error page would be tiny: refuse it so the next source is tried.
+  if (loaded < approxBytes * 0.5) throw new Error(`file too small (${loaded} bytes)`);
+  const blob = new Blob(chunks as BlobPart[], { type: 'application/octet-stream' });
+  try {
+    await cache.put(cacheKey, new Response(blob));
+  } catch (e) {
+    console.warn('[offline] could not cache the model (storage full?)', e);
+  }
+  onProgress?.(100);
+  return blob;
 }
 
 /**
@@ -98,34 +124,23 @@ export function preloadOfflineModel(onProgress?: (percent: number) => void): Pro
     const model = pickModel();
     console.info('[offline] loading model:', model.label);
 
-    // Where to download from: the place used before (if any), Hugging Face, then this server.
+    // Where to download from: Hugging Face first, then this server (/api/offline-model/:id).
     const viaServer = new URL(`/api/offline-model/${model.id}`, location.origin).href;
-    const saved = localStorage.getItem(SOURCE_FLAG);
-    const candidates = [
-      ...new Set(
-        [saved && localStorage.getItem(READY_FLAG) === model.url ? saved : null, model.url, viaServer].filter(
-          (u): u is string => !!u
-        )
-      ),
-    ];
+    const candidates = [model.url, viaServer];
+    const approxBytes = model.id === 'medium' ? 1_117_000_000 : 491_000_000;
 
     const errors: string[] = [];
     for (const url of candidates) {
       // `as any`: the asset-path type differs between wllama 1.x (5 files) and 2.x+ (2 wasm files).
-      // allowOffline is passed in both places because 2.x+ reads it from the constructor.
       const instance = new Wllama(CONFIG_PATHS as any, { allowOffline: true } as any);
       try {
-        await checkSource(url);
-        await instance.loadModelFromUrl(url, {
+        // Cached under model.url whichever source it came from, so offline loading always finds it.
+        const blob = await getModelBlob(model.url, url, approxBytes, onProgress);
+        await (instance as any).loadModel([blob], {
           n_ctx: 2048, // room for the prompt with its example (~700 tokens) + answer (~450 tokens)
-          allowOffline: true, // use the cached copy when there is no internet
-          progressCallback: ({ loaded, total }: { loaded: number; total: number }) => {
-            if (onProgress && total > 0) onProgress(Math.round((loaded / total) * 100));
-          },
-        } as any);
+        });
         wllama = instance;
         localStorage.setItem(READY_FLAG, model.url);
-        localStorage.setItem(SOURCE_FLAG, url);
         console.info('[offline] model loaded from', new URL(url).host);
         return instance;
       } catch (err: any) {
